@@ -7,6 +7,10 @@ on:
     types: [completed]
     branches: [main]
 
+concurrency:
+  group: windows-installer
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
