@@ -204,3 +204,19 @@ test("an old alarm never deletes a newer drop", async () => {
   assert.equal(state.values.has("drop"), true);
   assert.equal(state.alarmAt, current.expiresAtMs);
 });
+test("an expired alarm removes the stale drop and alarm", async () => {
+  const state = new MemoryState();
+  const instance = new RelayDropDO(state);
+  const seeded = await seedDrop(instance);
+  assert.equal(seeded.response.status, 201);
+
+  const expired = state.values.get("drop");
+  expired.expiresAtMs = Date.now() - 1;
+  state.values.set("drop", expired);
+
+  await instance.alarm();
+
+  assert.equal(state.values.has("drop"), false);
+  assert.equal(state.alarmAt, null);
+});
+
