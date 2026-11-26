@@ -248,6 +248,7 @@ const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
     "约束各成员直接给结论和关键点，禁止寒暄和铺垫。": "Arahkan setiap anggota untuk langsung memberikan kesimpulan dan poin penting tanpa basa-basi atau pengantar.",
     "统一使用简体中文回复；直接给结论、关键依据和可执行方案，禁止客套和冗余铺垫。": "Gunakan Bahasa Indonesia secara konsisten; berikan kesimpulan, dasar utama, dan langkah yang dapat dilakukan secara langsung tanpa basa-basi.",
     "[用户]": "[Pengguna]",
+    "叠号 · AI 助手账号切换器": "叠号 · Pengalih Akun AI",
   },
   "en": {
     "群聊":"Group Chat","同步":"Sync","设置":"Settings","更新":"Update","新版本":"New Version",
@@ -472,6 +473,7 @@ const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
     "约束各成员直接给结论和关键点，禁止寒暄和铺垫。": "Require each member to give conclusions and key points directly, without greetings or filler.",
     "统一使用简体中文回复；直接给结论、关键依据和可执行方案，禁止客套和冗余铺垫。": "Reply consistently in English; provide conclusions, key rationale, and actionable steps directly, without pleasantries or unnecessary preamble.",
     "[用户]": "[User]",
+    "叠号 · AI 助手账号切换器": "叠号 · AI Account Switcher",
   }
 };
 function maamTranslateText(text: string): string {
