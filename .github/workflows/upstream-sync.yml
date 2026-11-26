@@ -1,0 +1,45 @@
+name: Upstream Sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout private repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Sync upstream source
+        shell: bash
+        run: |
+          set -euo pipefail
+          UPSTREAM_URL="https://github.com/ldjx7/multi-agent-account-manager.git"
+          git clone --depth 1 "$UPSTREAM_URL" /tmp/upstream
+          rsync -a --delete \
+            --exclude='.git/' \
+            --exclude='.github/workflows/upstream-sync.yml' \
+            --exclude='.github/workflows/localization-build.yml' \
+            --exclude='localization/' \
+            --exclude='scripts/localization/' \
+            /tmp/upstream/ ./ 
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No upstream changes detected."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Sync upstream source"
+          git push
