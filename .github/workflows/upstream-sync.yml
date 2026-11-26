@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout private repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -33,7 +33,7 @@ jobs:
             --exclude='localization/' \
             --exclude='scripts/localization/' \
             /tmp/upstream/ ./ 
-          node scripts/localization/apply.mjs\n          node scripts/localization/apply.mjs
+          node scripts/localization/apply.mjs
           git add -A
           if git diff --cached --quiet; then
             echo "No source or localization changes detected."
