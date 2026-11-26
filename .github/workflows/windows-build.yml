@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -49,3 +49,19 @@ jobs:
           path: src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $installers = @(Get-ChildItem "src-tauri/target/release/bundle/nsis" -Filter "*.exe" | ForEach-Object { $_.FullName })
+          if ($installers.Count -eq 0) {
+            throw "No Windows installer (.exe) found."
+          }
+
+          $version = (node -p "require('./package.json').version").Trim()
+          $tag = "v$version-build.${{ github.run_number }}"
+          $title = "Windows v$version (build #${{ github.run_number }})"
+
+          gh release create $tag @installers --title $title --generate-notes --prerelease
