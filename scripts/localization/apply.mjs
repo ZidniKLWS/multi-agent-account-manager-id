@@ -246,7 +246,7 @@ const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
     "请填写技能指令内容": "Masukkan instruksi keahlian",
     "单个群聊最多支持 30 个共享技能": "Setiap grup mendukung maksimal 30 keahlian bersama",
     "[用户]": "[Pengguna]",
-    "叠号 · AI 助手账号切换器": "叠号 · Pengalih Akun AI",
+    "叠号 · AI 助手账号切换器": "Duohao · Pengalih Akun AI",
     "正在识别并同步...": "Mengenali dan menyinkronkan...",
     "扫码直接同步": "Pindai QR untuk sinkronisasi",
     "可选：输入 JSON 数组覆盖内置规则，例如 [{\"id\":\"muse\",\"name\":\"Muse\",\"hostPatterns\":[\"muse.ai\"],\"composerSelectors\":[\"textarea\"]}]": "Opsional: masukkan array JSON untuk mengganti aturan bawaan, misalnya aturan khusus untuk situs Muse.",
@@ -294,6 +294,14 @@ const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
     "读取备份文件失败:": "Gagal membaca file cadangan:",
     "作为发送端（生成临时加密共享） 启用官网 / Cloudflare 加密中转通道（默认关闭，跨网或开代理时可选）": "Sebagai pengirim (membuat berbagi terenkripsi sementara), aktifkan kanal relay terenkripsi resmi/Cloudflare (nonaktif secara default; opsional untuk jaringan berbeda atau saat memakai proxy).",
     "作为接收端（扫码或输入同步串拉取）": "Sebagai penerima (pindai QR atau masukkan string sinkronisasi untuk mengambil data).",
+    "快捷切号": "Pintasan berpindah akun",
+    "归属 ": "Terhubung ke ",
+    "主题：": "Tema: ",
+    "· 评审流（初稿 → 评审 → 定稿）": "· Alur tinjauan (draf → tinjauan → final)",
+    "· A2A接力（最多": "· Relay A2A (maksimal",
+    "检测到正文 @": "Terdeteksi penyebutan @ dalam pesan",
+    "仅向": "Kirim hanya ke",
+    "暂无账号": "Belum ada akun",
   },
   "en": {
     "群聊": "Group Chat",
@@ -515,7 +523,7 @@ const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
     "请填写技能指令内容": "Masukkan instruksi keahlian",
     "单个群聊最多支持 30 个共享技能": "Setiap grup mendukung maksimal 30 keahlian bersama",
     "[用户]": "[User]",
-    "叠号 · AI 助手账号切换器": "叠号 · AI Account Switcher",
+    "叠号 · AI 助手账号切换器": "Duohao · AI Account Switcher",
     "正在识别并同步...": "Recognizing and syncing...",
     "扫码直接同步": "Scan QR to sync",
     "可选：输入 JSON 数组覆盖内置规则，例如 [{\"id\":\"muse\",\"name\":\"Muse\",\"hostPatterns\":[\"muse.ai\"],\"composerSelectors\":[\"textarea\"]}]": "Optional: enter a JSON array to override the built-in rules, for example, a custom rule for Muse.",
@@ -563,6 +571,14 @@ const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
     "读取备份文件失败:": "Failed to read backup file:",
     "作为发送端（生成临时加密共享） 启用官网 / Cloudflare 加密中转通道（默认关闭，跨网或开代理时可选）": "As the sender (creates temporary encrypted sharing), enable the official/Cloudflare encrypted relay channel (off by default; optional across networks or when using a proxy).",
     "作为接收端（扫码或输入同步串拉取）": "As the receiver (scan the QR code or enter a sync string to fetch data).",
+    "快捷切号": "Account-switch shortcut",
+    "归属 ": "Assigned to ",
+    "主题：": "Theme: ",
+    "· 评审流（初稿 → 评审 → 定稿）": "· Review workflow (draft → review → final)",
+    "· A2A接力（最多": "· A2A relay (up to",
+    "检测到正文 @": "Detected an @ mention in the message",
+    "仅向": "Send only to",
+    "暂无账号": "No accounts yet",
   }
 };
 const MAAM_PARTIAL_TRANSLATIONS: Record<string, Record<string, string>> = {
@@ -619,6 +635,31 @@ const MAAM_PARTIAL_TRANSLATIONS: Record<string, Record<string, string>> = {
     "下载完成：": "Unduhan selesai: ",
     "下载失败：": "Unduhan gagal: ",
     "读取备份文件失败:": "Gagal membaca file cadangan:"
+    "100% · 已耗尽": "100% · habis",
+    "作为发送端（生成临时加密共享）": "Sebagai pengirim (membuat berbagi terenkripsi sementara)",
+    "启用官网 / Cloudflare 加密中转通道": "Aktifkan kanal relay terenkripsi resmi/Cloudflare",
+    "（默认关闭，跨网或开代理时可选）": " (nonaktif secara default; opsional untuk jaringan berbeda atau saat memakai proxy)",
+    "作为接收端（扫码或输入同步串拉取）": "Sebagai penerima (pindai QR atau masukkan string sinkronisasi untuk mengambil data)",
+    "已加密 ": "Terenkripsi ",
+    " 个账号（": " akun (",
+    " 个含 Cookie）。": " termasuk Cookie).",
+    "保存 .maam 文件": "Simpan file .maam",
+    "复制密文": "Salin data terenkripsi",
+    "同步成功：新增 ": "Sinkronisasi berhasil: menambahkan ",
+    " 个账号，更新 ": " akun, memperbarui ",
+    " 个账号，写入 ": " akun, menyimpan ",
+    " 个登录态": " status login",
+    "HTTP CONNECT 代理（留空使用系统网络）": "Proxy HTTP CONNECT (kosongkan untuk memakai jaringan sistem)",
+    "仅作用于内嵌页面；外部浏览器登录与更新检查不走此代理。": "Hanya berlaku untuk halaman tertanam; login browser eksternal dan pemeriksaan pembaruan tidak menggunakan proxy ini.",
+    "点击进入「": "Klik untuk membuka “",
+    "暂无 ": "Belum ada ",
+    " 点击右上角「+ 新增」创建独立登录环境": " klik “+ Tambah” di kanan atas untuk membuat lingkungan login terpisah",
+    "：将同时转发给": "; teruskan juga kepada ",
+    "(自动)": "(otomatis)",
+    "(自动按额度选号)": "(pilih otomatis berdasarkan kuota)",
+    "我:": "Saya:",
+    "正在回复…": "sedang membalas…",
+    " · 点击开始群聊": " · klik untuk memulai obrolan grup",
   },
   "en": {
     "Cookie 已于 ": "Cookie expired at ",
@@ -673,6 +714,31 @@ const MAAM_PARTIAL_TRANSLATIONS: Record<string, Record<string, string>> = {
     "下载完成：": "Download complete: ",
     "下载失败：": "Download failed: ",
     "读取备份文件失败:": "Failed to read backup file:"
+    "100% · 已耗尽": "100% · exhausted",
+    "作为发送端（生成临时加密共享）": "As the sender (creates temporary encrypted sharing)",
+    "启用官网 / Cloudflare 加密中转通道": "enable the official/Cloudflare encrypted relay channel",
+    "（默认关闭，跨网或开代理时可选）": " (off by default; optional across networks or when using a proxy)",
+    "作为接收端（扫码或输入同步串拉取）": "As the receiver (scan a QR code or enter a sync string to fetch data)",
+    "已加密 ": "Encrypted ",
+    " 个账号（": " accounts (",
+    " 个含 Cookie）。": " including Cookie).",
+    "保存 .maam 文件": "Save .maam file",
+    "复制密文": "Copy encrypted data",
+    "同步成功：新增 ": "Sync succeeded: added ",
+    " 个账号，更新 ": " accounts, updated ",
+    " 个账号，写入 ": " accounts, wrote ",
+    " 个登录态": " login sessions",
+    "HTTP CONNECT 代理（留空使用系统网络）": "HTTP CONNECT proxy (leave blank to use the system network)",
+    "仅作用于内嵌页面；外部浏览器登录与更新检查不走此代理。": "Applies only to embedded pages; external-browser sign-in and update checks do not use this proxy.",
+    "点击进入「": "Click to open “",
+    "暂无 ": "No ",
+    " 点击右上角「+ 新增」创建独立登录环境": "; click “+ Add” in the top-right to create a separate sign-in environment",
+    "：将同时转发给": "; also forward to ",
+    "(自动)": "(automatic)",
+    "(自动按额度选号)": "(automatic quota-based selection)",
+    "我:": "Me:",
+    "正在回复…": "is replying…",
+    " · 点击开始群聊": " · click to start group chat",
   }
 };
 
@@ -743,7 +809,9 @@ function applyMaamLocalization(): void {
   }
 }
 function maamLanguageSelectorHtml(): string {
-  return '<div class="rail-language-control" style="padding:8px 6px;"><select id="maam-language-selector" aria-label="Language" style="width:100%;padding:7px;border-radius:8px;background:var(--surface);color:var(--text);border:1px solid var(--border);"><option value="en">English</option><option value="id">Bahasa Indonesia</option><option value="zh">简体中文</option></select></div>';
+  const chineseLabel = maamLanguage === "id" ? "Bahasa Mandarin (Sederhana)" : maamLanguage === "en" ? "Chinese (Simplified)" : "简体中文";
+  const languageLabel = maamLanguage === "id" ? "Bahasa" : maamLanguage === "zh" ? "语言" : "Language";
+  return '<div class="rail-language-control" style="padding:8px 6px;"><select id="maam-language-selector" aria-label="' + languageLabel + '" style="width:100%;padding:7px;border-radius:8px;background:var(--surface);color:var(--text);border:1px solid var(--border);"><option value="en">English</option><option value="id">Bahasa Indonesia</option><option value="zh">' + chineseLabel + '</option></select></div>';
 }
 function bindMaamLanguageSelector(): void {
   const select = document.querySelector<HTMLSelectElement>("#maam-language-selector");
