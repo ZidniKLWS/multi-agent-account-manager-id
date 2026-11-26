@@ -29,9 +29,7 @@ jobs:
           git clone --depth 1 "$UPSTREAM_URL" /tmp/upstream
           rsync -a --delete \
             --exclude='.git/' \
-            --exclude='.github/workflows/upstream-sync.yml' \
-            --exclude='.github/workflows/localization-build.yml' \
-            --exclude='.github/workflows/windows-build.yml' \
+            --exclude='.github/workflows/' \
             --exclude='localization/' \
             --exclude='scripts/localization/' \
             /tmp/upstream/ ./ 
