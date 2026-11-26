@@ -38,6 +38,8 @@ jobs:
             --exclude='localization/' \
             --exclude='scripts/localization/' \
             --exclude='README.md' \
+            --exclude='relay-worker/src/index.js' \
+            --exclude='relay-worker/test/' \
             /tmp/upstream/ ./ 
           node scripts/localization/apply.mjs
           git add -A
