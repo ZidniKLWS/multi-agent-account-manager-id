@@ -302,6 +302,10 @@ const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
     "仅向": "Kirim hanya ke",
     "暂无账号": "Belum ada akun",
     "可选：输入 JSON 数组覆盖内置规则": "Opsional: masukkan array JSON untuk mengganti aturan bawaan.",
+    "叠号": "Duohao",
+    "[待授权]": "Menunggu otorisasi",
+    "约束各成员直接给结论和关键点，禁止寒暄和铺垫。": "Arahkan setiap anggota untuk langsung menyampaikan kesimpulan dan poin penting tanpa basa-basi atau pengantar yang tidak perlu.",
+    "统一使用简体中文回复；直接给结论、关键依据和可执行方案，禁止客套和冗余铺垫。": "Gunakan bahasa Mandarin Sederhana secara konsisten; sampaikan kesimpulan, dasar utama, dan langkah yang dapat dilakukan secara langsung tanpa basa-basi atau pengantar berlebihan.",
   },
   "en": {
     "群聊": "Group Chat",
@@ -579,6 +583,10 @@ const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
     "仅向": "Send only to",
     "暂无账号": "No accounts yet",
     "可选：输入 JSON 数组覆盖内置规则": "Optional: enter a JSON array to override the built-in rules.",
+    "叠号": "Duohao",
+    "[待授权]": "Authorization pending",
+    "约束各成员直接给结论和关键点，禁止寒暄和铺垫。": "Require each member to state conclusions and key points directly, without greetings or unnecessary preamble.",
+    "统一使用简体中文回复；直接给结论、关键依据和可执行方案，禁止客套和冗余铺垫。": "Reply consistently in Simplified Chinese; provide the conclusion, key rationale, and actionable steps directly, without pleasantries or unnecessary preamble.",
   }
 };
 const MAAM_PARTIAL_TRANSLATIONS: Record<string, Record<string, string>> = {
@@ -660,6 +668,18 @@ const MAAM_PARTIAL_TRANSLATIONS: Record<string, Record<string, string>> = {
     "我:": "Saya:",
     "正在回复…": "sedang membalas…",
     " · 点击开始群聊": " · klik untuk memulai obrolan grup",
+    "可选：输入 JSON 数组覆盖内置规则": "Opsional: masukkan array JSON untuk mengganti aturan bawaan",
+    "例如": "misalnya",
+    "代理：": "Proxy: ",
+    "时区：": "Zona waktu: ",
+    "在浏览器中打开 ": "Buka di browser ",
+    " 官网": " situs resmi",
+    "主题：深色": "Tema: Gelap",
+    "主题：浅色": "Tema: Terang",
+    "主题：跟随系统": "Tema: Ikuti sistem",
+    "外观主题：深色": "Tampilan: Gelap",
+    "外观主题：浅色": "Tampilan: Terang",
+    "外观主题：跟随系统": "Tampilan: Ikuti sistem",
   },
   "en": {
     "Cookie 已于 ": "Cookie expired at ",
@@ -739,6 +759,18 @@ const MAAM_PARTIAL_TRANSLATIONS: Record<string, Record<string, string>> = {
     "我:": "Me:",
     "正在回复…": "is replying…",
     " · 点击开始群聊": " · click to start group chat",
+    "可选：输入 JSON 数组覆盖内置规则": "Optional: enter a JSON array to override the built-in rules",
+    "例如": "e.g.",
+    "代理：": "Proxy: ",
+    "时区：": "Time zone: ",
+    "在浏览器中打开 ": "Open in browser ",
+    " 官网": " official website",
+    "主题：深色": "Theme: Dark",
+    "主题：浅色": "Theme: Light",
+    "主题：跟随系统": "Theme: System",
+    "外观主题：深色": "Appearance: Dark",
+    "外观主题：浅色": "Appearance: Light",
+    "外观主题：跟随系统": "Appearance: System",
   }
 };
 
