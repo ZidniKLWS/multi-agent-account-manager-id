@@ -77,7 +77,7 @@ function applyMaamLocalization(): void {
   if (selector) selector.value = maamLanguage;
 }
 function maamLanguageSelectorHtml(): string {
-  return `<div class="rail-language-control" style="padding:8px 6px;"><select id="maam-language-selector" aria-label="Language" style="width:100%;padding:7px;border-radius:8px;background:var(--surface);color:var(--text);border:1px solid var(--border);"><option value="en">English</option><option value="id">Bahasa Indonesia</option><option value="zh">简体中文</option></select></div>`;
+  return '<div class="rail-language-control" style="padding:8px 6px;"><select id="maam-language-selector" aria-label="Language" style="width:100%;padding:7px;border-radius:8px;background:var(--surface);color:var(--text);border:1px solid var(--border);"><option value="en">English</option><option value="id">Bahasa Indonesia</option><option value="zh">简体中文</option></select></div>';
 }
 function bindMaamLanguageSelector(): void {
   const select = document.querySelector<HTMLSelectElement>("#maam-language-selector");
