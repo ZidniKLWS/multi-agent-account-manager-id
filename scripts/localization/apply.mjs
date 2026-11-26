@@ -396,7 +396,6 @@ const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
     "最新": "Terbaru",
     "共享技能": "Keahlian bersama",
     "最新 v": "Versi terbaru v",
-    "最新 v${escapeHtml(res.latestVersion)}": "Versi terbaru v${escapeHtml(res.latestVersion)}",
     "已绑定专属会话 ·": "Terhubung ke sesi khusus ·",
     "点击右上角「+ 新增」创建独立登录环境": "Klik “+ Tambah” di kanan atas untuk membuat lingkungan login terpisah.",
     "位成员 · 点击开始群聊": "anggota · klik untuk memulai obrolan grup",
