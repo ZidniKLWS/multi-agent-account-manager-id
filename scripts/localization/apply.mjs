@@ -100,7 +100,7 @@ if (!source.includes(renderEndAnchor)) throw new Error("Localization patch: rend
 // run after render's HTML assignment by calling on the next microtask from the render function body.
 source = source.replace(renderEndAnchor, renderEndAnchor + "\n  // MAAM localization is applied after each render.\n  ");
 const renderCloseAnchor = "  const provider = currentProvider(snapshot);";
-source = source.replace(renderCloseAnchor, renderCloseAnchor + "\\n  ");
+source = source.replace(renderCloseAnchor, renderCloseAnchor + "\n  ");
 const finalAnchor = "  root.innerHTML = `";
 if (!source.includes(finalAnchor)) throw new Error("Localization patch: render template anchor not found");
 source = source.replace(/(root.innerHTML = \`[\s\S]*?\`;)\n/g, "$1\n    applyMaamLocalization();\n    bindMaamLanguageSelector();\n");
