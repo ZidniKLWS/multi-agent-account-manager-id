@@ -3706,7 +3706,7 @@ const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
     "清空记录并让所有网页成员新开原生对话，开始一个干净的话题": "Hapus riwayat dan mulai percakapan native baru untuk semua anggota web",
     "输入消息，输入 @ 可唤起成员点名（Enter 发送，Shift+Enter 换行）": "Ketik pesan; gunakan @ untuk menyebut anggota (Enter untuk mengirim, Shift+Enter untuk baris baru)",
     "语言": "Language",
-    "简体中文": "简体中文",
+    "简体中文": "Chinese (Simplified)",
     "已有结论": "Sudah ada kesimpulan",
     "向全部有效成员转发": "Teruskan ke semua anggota aktif",
     "已复制同步串（可在另一台设备地址栏直接粘贴）": "String sinkronisasi disalin (tempel ke bilah alamat perangkat lain)",
