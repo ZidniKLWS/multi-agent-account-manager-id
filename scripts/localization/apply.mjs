@@ -249,7 +249,6 @@ const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
     "叠号 · AI 助手账号切换器": "Duohao · Pengalih Akun AI",
     "正在识别并同步...": "Mengenali dan menyinkronkan...",
     "扫码直接同步": "Pindai QR untuk sinkronisasi",
-    "可选：输入 JSON 数组覆盖内置规则，例如 [{\"id\":\"muse\",\"name\":\"Muse\",\"hostPatterns\":[\"muse.ai\"],\"composerSelectors\":[\"textarea\"]}]": "Opsional: masukkan array JSON untuk mengganti aturan bawaan, misalnya aturan khusus untuk situs Muse.",
     "命令参数，空格分隔（例如 -p 或 exec {prompt}；无 {prompt} 时走 stdin）": "Parameter perintah dipisahkan spasi (misalnya -p atau exec {prompt}; jika tanpa {prompt}, input dikirim melalui stdin).",
     "刷新已就绪账号额度": "Perbarui kuota akun yang siap",
     "中文（简体）": "Bahasa Mandarin (Sederhana)",
@@ -302,6 +301,7 @@ const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
     "检测到正文 @": "Terdeteksi penyebutan @ dalam pesan",
     "仅向": "Kirim hanya ke",
     "暂无账号": "Belum ada akun",
+    "可选：输入 JSON 数组覆盖内置规则": "Opsional: masukkan array JSON untuk mengganti aturan bawaan.",
   },
   "en": {
     "群聊": "Group Chat",
@@ -526,7 +526,6 @@ const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
     "叠号 · AI 助手账号切换器": "Duohao · AI Account Switcher",
     "正在识别并同步...": "Recognizing and syncing...",
     "扫码直接同步": "Scan QR to sync",
-    "可选：输入 JSON 数组覆盖内置规则，例如 [{\"id\":\"muse\",\"name\":\"Muse\",\"hostPatterns\":[\"muse.ai\"],\"composerSelectors\":[\"textarea\"]}]": "Optional: enter a JSON array to override the built-in rules, for example, a custom rule for Muse.",
     "命令参数，空格分隔（例如 -p 或 exec {prompt}；无 {prompt} 时走 stdin）": "Command arguments, separated by spaces (e.g. -p or exec {prompt}; without {prompt}, input is sent through stdin).",
     "刷新已就绪账号额度": "Refresh ready account quotas",
     "中文（简体）": "Chinese (Simplified)",
@@ -579,6 +578,7 @@ const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
     "检测到正文 @": "Detected an @ mention in the message",
     "仅向": "Send only to",
     "暂无账号": "No accounts yet",
+    "可选：输入 JSON 数组覆盖内置规则": "Optional: enter a JSON array to override the built-in rules.",
   }
 };
 const MAAM_PARTIAL_TRANSLATIONS: Record<string, Record<string, string>> = {
