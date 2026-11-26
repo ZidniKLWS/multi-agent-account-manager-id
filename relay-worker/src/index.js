@@ -90,33 +90,38 @@ export class RelayDropDO {
       const maxDownloads = Math.min(3, Math.max(1, rawMax));
       const expiresAtMs = Date.now() + ttlSecs * 1000;
 
-      // Atomic read/check/write: concurrent creation attempts cannot replace
-      // an unexpired drop or both claim to have created the same ID.
-      const created = await this.state.storage.transaction(async (txn) => {
-        const existing = await txn.get("drop");
-        if (existing && Date.now() < existing.expiresAtMs) {
-          return false;
-        }
+      // Creation also schedules an alarm. Keep those two operations ordered
+      // with consumption and expiry cleanup so an older alarm cannot replace
+      // the deadline belonging to a newer drop.
+      const created = await this.state.blockConcurrencyWhile(async () => {
+        const wasCreated = await this.state.storage.transaction(async (txn) => {
+          const existing = await txn.get("drop");
+          if (existing && Date.now() < existing.expiresAtMs) {
+            return false;
+          }
 
-        await txn.put("drop", {
-          nonce: payload.nonce,
-          ciphertext: payload.ciphertext,
-          tokenHash: payload.tokenHash,
-          deleteTokenHash: payload.deleteTokenHash,
-          remaining: maxDownloads,
-          badAttempts: 0,
-          expiresAtMs,
+          await txn.put("drop", {
+            nonce: payload.nonce,
+            ciphertext: payload.ciphertext,
+            tokenHash: payload.tokenHash,
+            deleteTokenHash: payload.deleteTokenHash,
+            remaining: maxDownloads,
+            badAttempts: 0,
+            expiresAtMs,
+          });
+          return true;
         });
-        return true;
+
+        if (wasCreated) {
+          await this.state.storage.setAlarm(expiresAtMs);
+        }
+        return wasCreated;
       });
 
       if (!created) {
         return jsonResp(409, { error: "already_exists" });
       }
 
-      // setAlarm() replaces any previous alarm for this object. An alarm
-      // already in flight rechecks the current record before cleaning it.
-      await this.state.storage.setAlarm(expiresAtMs);
       return jsonResp(201, { ok: true, expiresAtMs });
     }
 
