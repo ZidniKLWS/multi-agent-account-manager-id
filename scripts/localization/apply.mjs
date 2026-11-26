@@ -1,7 +1,7 @@
 // Localization overlay for upstream Multi-Agent Account Manager.
 // Applies a small, maintainable translation layer without modifying upstream logic.
-const fs = require("node:fs");
-const path = require("node:path");
+import fs from "node:fs";
+import path from "node:path";
 const file = path.join(process.cwd(), "src", "main.ts");
 let source = fs.readFileSync(file, "utf8");
 
@@ -92,13 +92,13 @@ function bindMaamLanguageSelector(): void {
 // End MAAM_LOCALIZATION_OVERLAY
 `;
 
-source = source.replace(helperAnchor, helper + "\\n" + helperAnchor);
-source = source.replace(railAnchor, railAnchor + "\\n" + "          ${maamLanguageSelectorHtml()}");
+source = source.replace(helperAnchor, helper + "\n" + helperAnchor);
+source = source.replace(railAnchor, railAnchor + "\n" + "          ${maamLanguageSelectorHtml()}");
 const renderEndAnchor = "  if (!root || !snapshot) return;";
 if (!source.includes(renderEndAnchor)) throw new Error("Localization patch: render root guard not found");
 // Inject localization and selector binding after root rendering, before event binding is not required;
 // run after render's HTML assignment by calling on the next microtask from the render function body.
-source = source.replace(renderEndAnchor, renderEndAnchor + "\\n  // MAAM localization is applied after each render.\\n  ");
+source = source.replace(renderEndAnchor, renderEndAnchor + "\n  // MAAM localization is applied after each render.\n  ");
 const renderCloseAnchor = "  const provider = currentProvider(snapshot);";
 source = source.replace(renderCloseAnchor, renderCloseAnchor + "\\n  ");
 const finalAnchor = "  root.innerHTML = `";
