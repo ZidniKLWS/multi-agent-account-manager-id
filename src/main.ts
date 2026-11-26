@@ -3345,10 +3345,55 @@ const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
     "请填写技能名称": "Masukkan nama keahlian",
     "请填写技能指令内容": "Masukkan instruksi keahlian",
     "单个群聊最多支持 30 个共享技能": "Setiap grup mendukung maksimal 30 keahlian bersama",
-    "约束各成员直接给结论和关键点，禁止寒暄和铺垫。": "Arahkan setiap anggota untuk langsung memberikan kesimpulan dan poin penting tanpa basa-basi atau pengantar.",
-    "统一使用简体中文回复；直接给结论、关键依据和可执行方案，禁止客套和冗余铺垫。": "Gunakan Bahasa Indonesia secara konsisten; berikan kesimpulan, dasar utama, dan langkah yang dapat dilakukan secara langsung tanpa basa-basi.",
     "[用户]": "[Pengguna]",
     "叠号 · AI 助手账号切换器": "叠号 · Pengalih Akun AI",
+    "正在识别并同步...": "Mengenali dan menyinkronkan...",
+    "扫码直接同步": "Pindai QR untuk sinkronisasi",
+    "可选：输入 JSON 数组覆盖内置规则，例如 [{"id":"muse","name":"Muse","hostPatterns":["muse.ai"],"composerSelectors":["textarea"]}]": "Opsional: masukkan array JSON untuk mengganti aturan bawaan, misalnya aturan khusus untuk situs Muse.",
+    "命令参数，空格分隔（例如 -p 或 exec {prompt}；无 {prompt} 时走 stdin）": "Parameter perintah dipisahkan spasi (misalnya -p atau exec {prompt}; jika tanpa {prompt}, input dikirim melalui stdin).",
+    "刷新已就绪账号额度": "Perbarui kuota akun yang siap",
+    "中文（简体）": "Bahasa Mandarin (Sederhana)",
+    "正在连接 GitHub Releases 检查版本信息...": "Menghubungkan ke GitHub Releases untuk memeriksa informasi versi...",
+    "当前发布尚未包含本平台自动安装包，请点击「发布页」手动下载。": "Rilis ini belum menyertakan installer otomatis untuk platform ini. Klik “Halaman rilis” untuk mengunduh secara manual.",
+    "已读取文件：": "File telah dibaca:",
+    "在任意应用中按下快捷键即可显示或隐藏主窗口；托盘菜单可完全退出。": "Tekan pintasan di aplikasi mana pun untuk menampilkan atau menyembunyikan jendela utama. Gunakan menu tray untuk keluar sepenuhnya.",
+    "HTTP CONNECT 代理（留空使用系统网络）": "Proxy HTTP CONNECT (kosongkan untuk menggunakan jaringan sistem)",
+    "测速中...": "Menguji kecepatan...",
+    "测试连接": "Uji koneksi",
+    "仅作用于内嵌页面；外部浏览器登录与更新检查不走此代理。": "Hanya berlaku untuk halaman tertanam. Login melalui browser eksternal dan pemeriksaan pembaruan tidak menggunakan proxy ini.",
+    "留空则创建后手动登录；粘贴 Cookie 后点击「创建并打开」将直接导入并登录。": "Kosongkan untuk login secara manual setelah akun dibuat. Tempel Cookie lalu klik “Buat dan buka” untuk langsung mengimpor dan login.",
+    "适用于 Google OAuth 无法在内置窗口直接登录的场景；导入后自动刷新当前账号。": "Gunakan saat Google OAuth tidak dapat login langsung melalui jendela bawaan. Akun akan dimuat ulang otomatis setelah Cookie diimpor.",
+    "当前没有可用成员，可登录网页或点击右上角添加 API / CLI": "Belum ada anggota tersedia. Login ke akun web atau klik tombol kanan atas untuk menambahkan anggota API/CLI.",
+    "取消编辑": "Batalkan pengeditan",
+    "无状态直连（每轮携带完整上下文）": "Koneksi langsung tanpa status (konteks lengkap dikirim pada setiap giliran)",
+    "已绑定专属会话 · 重置会话": "Sesi khusus sudah terhubung · Atur ulang sesi",
+    "首次发消息时自动创建专属会话（不污染日常聊天）": "Sesi khusus dibuat otomatis saat pesan pertama dikirim (tidak mengganggu percakapan biasa)",
+    "暂无成员": "Belum ada anggota",
+    "正在读取规则…": "Membaca aturan…",
+    "保存并热生效": "Simpan dan terapkan langsung",
+    "保存配置": "Simpan konfigurasi",
+    "打开官网": "Buka situs resmi",
+    "切到余量最多": "Beralih ke akun dengan sisa kuota terbanyak",
+    "按额度排序": "Urutkan berdasarkan kuota",
+    "暂未开放内嵌会话 待核验官方网页直登路径与嵌入条款后启用，可点击右上角访问官网。": "Sesi tertanam belum tersedia. Fitur ini akan diaktifkan setelah jalur login web dan ketentuan penyematan diverifikasi. Klik kanan atas untuk membuka situs resmi.",
+    "清理重登": "Bersihkan sesi dan login ulang",
+    "加载中…": "Memuat…",
+    "状态异常": "Status bermasalah",
+    "在文件夹中显示": "Tampilkan di folder",
+    "暂无群聊": "Belum ada obrolan grup",
+    "点击右上角「+ 创建群聊」，可混编网页账号与 API / CLI 成员协同对话": "Klik “+ Buat obrolan grup” di kanan atas untuk menggabungkan akun web dan anggota API/CLI dalam satu percakapan.",
+    "群聊已就绪": "Obrolan grup siap",
+    "可在下方切换「并行」「评审流」或「A2A 接力」协作模式；输入 @ 可模糊点名，网页成员将自动绑定独立专属会话。": "Pilih mode kolaborasi “Paralel”, “Alur tinjauan”, atau “Relay A2A” di bawah. Ketik @ untuk mencari anggota; anggota web akan otomatis memakai sesi khusus.",
+    "正在直连执行并流式接收回复…": "Menjalankan koneksi langsung dan menerima balasan secara streaming…",
+    "正在该账号原生对话中生成回复…": "Sedang membuat balasan di percakapan asli akun tersebut…",
+    "前往该账号授权 →": "Buka akun tersebut untuk memberi otorisasi →",
+    "自动选号": "Pemilihan otomatis",
+    "会话": "Sesi",
+    "沉淀本轮结论": "Simpan kesimpulan putaran ini",
+    "自动": "Otomatis",
+    "读取备份文件失败:": "Gagal membaca file cadangan:",
+    "作为发送端（生成临时加密共享） 启用官网 / Cloudflare 加密中转通道（默认关闭，跨网或开代理时可选）": "Sebagai pengirim (membuat berbagi terenkripsi sementara), aktifkan kanal relay terenkripsi resmi/Cloudflare (nonaktif secara default; opsional untuk jaringan berbeda atau saat memakai proxy).",
+    "作为接收端（扫码或输入同步串拉取）": "Sebagai penerima (pindai QR atau masukkan string sinkronisasi untuk mengambil data).",
   },
   "en": {
     "群聊": "Group Chat",
@@ -3569,36 +3614,233 @@ const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
     "请填写技能名称": "Masukkan nama keahlian",
     "请填写技能指令内容": "Masukkan instruksi keahlian",
     "单个群聊最多支持 30 个共享技能": "Setiap grup mendukung maksimal 30 keahlian bersama",
-    "约束各成员直接给结论和关键点，禁止寒暄和铺垫。": "Require each member to give conclusions and key points directly, without greetings or filler.",
-    "统一使用简体中文回复；直接给结论、关键依据和可执行方案，禁止客套和冗余铺垫。": "Reply consistently in English; provide conclusions, key rationale, and actionable steps directly, without pleasantries or unnecessary preamble.",
     "[用户]": "[User]",
     "叠号 · AI 助手账号切换器": "叠号 · AI Account Switcher",
+    "正在识别并同步...": "Recognizing and syncing...",
+    "扫码直接同步": "Scan QR to sync",
+    "可选：输入 JSON 数组覆盖内置规则，例如 [{"id":"muse","name":"Muse","hostPatterns":["muse.ai"],"composerSelectors":["textarea"]}]": "Optional: enter a JSON array to override the built-in rules, for example, a custom rule for Muse.",
+    "命令参数，空格分隔（例如 -p 或 exec {prompt}；无 {prompt} 时走 stdin）": "Command arguments, separated by spaces (e.g. -p or exec {prompt}; without {prompt}, input is sent through stdin).",
+    "刷新已就绪账号额度": "Refresh ready account quotas",
+    "中文（简体）": "Chinese (Simplified)",
+    "正在连接 GitHub Releases 检查版本信息...": "Connecting to GitHub Releases to check version information...",
+    "当前发布尚未包含本平台自动安装包，请点击「发布页」手动下载。": "This release does not include an automatic installer for this platform. Click “Release page” to download it manually.",
+    "已读取文件：": "File read:",
+    "在任意应用中按下快捷键即可显示或隐藏主窗口；托盘菜单可完全退出。": "Press the shortcut in any app to show or hide the main window. Use the tray menu to exit completely.",
+    "HTTP CONNECT 代理（留空使用系统网络）": "HTTP CONNECT proxy (leave blank to use the system network)",
+    "测速中...": "Testing speed...",
+    "测试连接": "Test connection",
+    "仅作用于内嵌页面；外部浏览器登录与更新检查不走此代理。": "Applies only to embedded pages. External-browser sign-in and update checks do not use this proxy.",
+    "留空则创建后手动登录；粘贴 Cookie 后点击「创建并打开」将直接导入并登录。": "Leave blank to sign in manually after creation. Paste a Cookie and click “Create and open” to import it and sign in directly.",
+    "适用于 Google OAuth 无法在内置窗口直接登录的场景；导入后自动刷新当前账号。": "Use this when Google OAuth cannot sign in directly in the built-in window. The current account refreshes automatically after import.",
+    "当前没有可用成员，可登录网页或点击右上角添加 API / CLI": "No members are available. Sign in to a web account or click the top-right button to add an API/CLI member.",
+    "取消编辑": "Cancel editing",
+    "无状态直连（每轮携带完整上下文）": "Stateless direct connection (full context is sent with every turn)",
+    "已绑定专属会话 · 重置会话": "Dedicated session connected · Reset session",
+    "首次发消息时自动创建专属会话（不污染日常聊天）": "A dedicated session is created automatically when the first message is sent (keeps regular chats separate)",
+    "暂无成员": "No members",
+    "正在读取规则…": "Reading rules…",
+    "保存并热生效": "Save and apply immediately",
+    "保存配置": "Save configuration",
+    "打开官网": "Open official website",
+    "切到余量最多": "Switch to the account with the most remaining quota",
+    "按额度排序": "Sort by quota",
+    "暂未开放内嵌会话 待核验官方网页直登路径与嵌入条款后启用，可点击右上角访问官网。": "Embedded sessions are not available yet. They will be enabled after verifying the official web sign-in flow and embedding terms. Click the top-right button to visit the official website.",
+    "清理重登": "Clear session and sign in again",
+    "加载中…": "Loading…",
+    "状态异常": "Status error",
+    "在文件夹中显示": "Show in folder",
+    "暂无群聊": "No group chats yet",
+    "点击右上角「+ 创建群聊」，可混编网页账号与 API / CLI 成员协同对话": "Click “+ Create group chat” in the top-right to combine web accounts and API/CLI members in one conversation.",
+    "群聊已就绪": "Group chat is ready",
+    "可在下方切换「并行」「评审流」或「A2A 接力」协作模式；输入 @ 可模糊点名，网页成员将自动绑定独立专属会话。": "Choose “Parallel”, “Review workflow”, or “A2A relay” below. Type @ to find a member; web members automatically use a dedicated session.",
+    "正在直连执行并流式接收回复…": "Executing the direct connection and receiving a streamed response…",
+    "正在该账号原生对话中生成回复…": "Generating a reply in that account's native conversation…",
+    "前往该账号授权 →": "Open that account to authorize →",
+    "自动选号": "Automatic selection",
+    "会话": "Session",
+    "沉淀本轮结论": "Save this round's conclusions",
+    "自动": "Automatic",
+    "读取备份文件失败:": "Failed to read backup file:",
+    "作为发送端（生成临时加密共享） 启用官网 / Cloudflare 加密中转通道（默认关闭，跨网或开代理时可选）": "As the sender (creates temporary encrypted sharing), enable the official/Cloudflare encrypted relay channel (off by default; optional across networks or when using a proxy).",
+    "作为接收端（扫码或输入同步串拉取）": "As the receiver (scan the QR code or enter a sync string to fetch data).",
   }
-};function maamTranslateText(text: string): string {
+};
+const MAAM_PARTIAL_TRANSLATIONS: Record<string, Record<string, string>> = {
+  "id": {
+    "Cookie 已于 ": "Cookie kedaluwarsa pada ",
+    " 过期（需重新登录或刷新）": " kedaluwarsa (login ulang atau muat ulang)",
+    "Cookie 过期时间：": "Waktu kedaluwarsa Cookie: ",
+    "Cookie 约 ": "Cookie sekitar ",
+    " 年": " tahun",
+    "Cookie 剩 ": "Sisa Cookie ",
+    " 天": " hari",
+    " 小时": " jam",
+    " 分钟": " menit",
+    "Cookie 有效期至 ": "Cookie berlaku hingga ",
+    "（剩余 ": " (tersisa ",
+    "发现新版本 v": "Versi baru v",
+    "当前 v": "Versi saat ini v",
+    "已自动过滤 ": "Otomatis menyaring ",
+    " 个未登录或登录失效网页账号（已选 ": " akun web yang belum login atau sesinya kedaluwarsa (terpilih ",
+    "支持网页账号与 API / CLI 混合协同（已选 ": "Mendukung kolaborasi akun web dan API/CLI (terpilih ",
+    " 100% · 已耗尽": " 100% · habis",
+    " · A2A接力（最多 ": " · Relay A2A (maksimal ",
+    " 跳）": " lompatan)",
+    "检测到 @全体成员：将按排队限流向全员转发": "Terdeteksi @semua: pesan diteruskan ke seluruh anggota melalui antrean dengan pembatasan laju",
+    "检测到正文 @，评审流顺序：": "Terdeteksi @ dalam pesan; urutan alur tinjauan: ",
+    "检测到正文 @": "Terdeteksi penyebutan @ dalam pesan ",
+    "：将仅转发给被提及成员": ": teruskan hanya kepada anggota yang disebut",
+    "评审流顺序：": "Urutan tinjauan: ",
+    "仅向 ": "Kirim hanya ke ",
+    " 发送": " kirim",
+    "A2A 接力模式：成员回复正文包含 @成员 将自动触发下一跳（上限 ": "Mode relay A2A: balasan anggota yang memuat @anggota otomatis memicu lompatan berikutnya (maksimal ",
+    "[待授权] ": "[Menunggu otorisasi] ",
+    "我: ": "Saya: ",
+    ": 排队等待回复…": ": dalam antrean, menunggu balasan…",
+    " 正在回复…": " sedang membalas…",
+    " 位成员 · 点击开始群聊": " anggota · klik untuk memulai obrolan grup",
+    "点击编辑「": "Klik untuk mengedit “",
+    "」配置": "” pengaturan",
+    "点击切换到「": "Klik untuk beralih ke “",
+    "」原生会话页": "” percakapan asli",
+    "直连配置": "pengaturan koneksi langsung",
+    "已绑定群专属会话 · 点击进入「": "Terhubung ke sesi khusus grup ini · klik untuk membuka “",
+    " 页面": " halaman",
+    " 按剩余额度自动轮换选号（与该类具体 @ 互斥）": " berganti otomatis berdasarkan sisa kuota (tidak dapat digabung dengan @ anggota kategori ini)",
+    " · 点击全选或取消该类全部成员": " · klik untuk memilih atau membatalkan semua anggota kategori ini",
+    "外观主题：": "Tampilan: ",
+    "（点击切换）": " (klik untuk mengganti)",
+    "（点击更新）": " (klik untuk memperbarui)",
+    "已有结论（议题：": "Kesimpulan sudah tersedia (topik: ",
+    "- 观点": "- Pandangan ",
+    " · 未登录": " · Belum login",
+    " · 状态异常": " · Status bermasalah",
+    "正在下载：": "Mengunduh: ",
+    "下载完成：": "Unduhan selesai: ",
+    "下载失败：": "Unduhan gagal: ",
+    "读取备份文件失败:": "Gagal membaca file cadangan:"
+  },
+  "en": {
+    "Cookie 已于 ": "Cookie expired at ",
+    " 过期（需重新登录或刷新）": " expired (sign in again or refresh)",
+    "Cookie 过期时间：": "Cookie expiration: ",
+    "Cookie 约 ": "Cookie approx. ",
+    " 年": " years",
+    "Cookie 剩 ": "Cookie remaining ",
+    " 天": " days",
+    " 小时": " hours",
+    " 分钟": " minutes",
+    "Cookie 有效期至 ": "Cookie valid until ",
+    "（剩余 ": " (remaining ",
+    "发现新版本 v": "New version v",
+    "当前 v": "Current v",
+    "已自动过滤 ": "Automatically filtered ",
+    " 个未登录或登录失效网页账号（已选 ": " web accounts that are signed out or expired (selected ",
+    "支持网页账号与 API / CLI 混合协同（已选 ": "Supports mixed web-account and API/CLI collaboration (selected ",
+    " 100% · 已耗尽": " 100% · exhausted",
+    " · A2A接力（最多 ": " · A2A relay (up to ",
+    " 跳）": " hops)",
+    "检测到 @全体成员：将按排队限流向全员转发": "Detected @all: forwarding to all members through a queue with rate limiting",
+    "检测到正文 @，评审流顺序：": "Detected an @ mention in the message; review order: ",
+    "检测到正文 @": "Detected an @ mention in the message ",
+    "：将仅转发给被提及成员": ": forwarding only to mentioned members",
+    "评审流顺序：": "Review order: ",
+    "仅向 ": "Send only to ",
+    " 发送": " send",
+    "A2A 接力模式：成员回复正文包含 @成员 将自动触发下一跳（上限 ": "A2A relay mode: an @mention in a member reply automatically triggers the next hop (limit ",
+    "[待授权] ": "[Authorization pending] ",
+    "我: ": "Me: ",
+    ": 排队等待回复…": ": queued, waiting for a reply…",
+    " 正在回复…": " is replying…",
+    " 位成员 · 点击开始群聊": " members · click to start group chat",
+    "点击编辑「": "Click to edit “",
+    "」配置": "” settings",
+    "点击切换到「": "Click to switch to “",
+    "」原生会话页": "” native conversation",
+    "直连配置": "direct connection settings",
+    "已绑定群专属会话 · 点击进入「": "Bound to this group's dedicated session · click to open “",
+    " 页面": " page",
+    " 按剩余额度自动轮换选号（与该类具体 @ 互斥）": " automatically rotates by remaining quota (exclusive with explicit @ mentions in this category)",
+    " · 点击全选或取消该类全部成员": " · click to select or clear all members in this category",
+    "外观主题：": "Appearance: ",
+    "（点击切换）": " (click to switch)",
+    "（点击更新）": " (click to update)",
+    "已有结论（议题：": "Conclusion available (topic: ",
+    "- 观点": "- Viewpoint ",
+    " · 未登录": " · Signed out",
+    " · 状态异常": " · Status error",
+    "正在下载：": "Downloading: ",
+    "下载完成：": "Download complete: ",
+    "下载失败：": "Download failed: ",
+    "读取备份文件失败:": "Failed to read backup file:"
+  }
+};
+
+function maamTranslateText(text: string): string {
+  if (maamLanguage === "zh") return text;
   const dict = MAAM_TRANSLATIONS[maamLanguage] || {};
-  return dict[text] ?? text;
+  const exact = dict[text];
+  if (exact !== undefined) return exact;
+  const partial = MAAM_PARTIAL_TRANSLATIONS[maamLanguage] || {};
+  let result = text;
+  const entries = Object.entries(partial).sort((a, b) => b[0].length - a[0].length);
+  for (const [from, to] of entries) {
+    if (result.includes(from)) result = result.split(from).join(to);
+  }
+  return result;
 }
+
+let maamObserver: MutationObserver | null = null;
+let maamObserverQueued = false;
+
 function applyMaamLocalization(): void {
   const root = document.querySelector<HTMLElement>("#app");
   if (!root) return;
+
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
   while (walker.nextNode()) nodes.push(walker.currentNode as Text);
+
   for (const node of nodes) {
     const original = node.textContent || "";
     const trimmed = original.trim();
     if (!trimmed) continue;
+    if (node.parentElement?.closest("script,style,textarea,pre,code,[contenteditable='true']")) continue;
     const translated = maamTranslateText(trimmed);
-    if (translated !== trimmed) node.textContent = original.replace(trimmed, translated);
+    if (translated !== trimmed) {
+      const leading = original.match(/^\s*/)?.[0] || "";
+      const trailing = original.match(/\s*$/)?.[0] || "";
+      node.textContent = leading + translated + trailing;
+    }
   }
-  root.querySelectorAll<HTMLElement>("input,textarea,button,[title],[aria-label]").forEach(el => {
-    for (const attr of ["placeholder","title","aria-label"]) {
+
+  root.querySelectorAll<HTMLElement>("[placeholder], [title], [aria-label]").forEach(el => {
+    for (const attr of ["placeholder", "title", "aria-label"]) {
       const value = el.getAttribute(attr);
       if (value) el.setAttribute(attr, maamTranslateText(value));
     }
   });
+
   const selector = root.querySelector<HTMLSelectElement>("#maam-language-selector");
   if (selector) selector.value = maamLanguage;
+
+  if (!maamObserver && typeof MutationObserver !== "undefined") {
+    maamObserver = new MutationObserver(() => {
+      if (maamObserverQueued) return;
+      maamObserverQueued = true;
+      Promise.resolve().then(() => {
+        maamObserverQueued = false;
+        applyMaamLocalization();
+      });
+    });
+    maamObserver.observe(root, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ["placeholder", "title", "aria-label"]
+    });
+  }
 }
 function maamLanguageSelectorHtml(): string {
   return '<div class="rail-language-control" style="padding:8px 6px;"><select id="maam-language-selector" aria-label="Language" style="width:100%;padding:7px;border-radius:8px;background:var(--surface);color:var(--text);border:1px solid var(--border);"><option value="en">English</option><option value="id">Bahasa Indonesia</option><option value="zh">简体中文</option></select></div>';
