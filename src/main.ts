@@ -3501,6 +3501,10 @@ const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
     "位成员 · 点击开始群聊": "anggota · klik untuk memulai obrolan grup",
     "按剩余额度自动轮换选号（与该类具体 @ 互斥）": "Pilih otomatis bergantian berdasarkan sisa kuota (tidak dapat digabung dengan penyebutan @ anggota tertentu pada kategori ini)",
     "· 点击全选或取消该类全部成员": "· klik untuk memilih atau membatalkan pilihan semua anggota dalam kategori ini",
+    "将最近一轮各成员完成回复浓缩追加至共享上下文": "Rangkum balasan selesai dari setiap anggota pada putaran terbaru dan tambahkan ke konteks bersama",
+    "· 待接入": "· Segera hadir",
+    "位成员": "anggota",
+    " 点击右上角「+ 新增」创建独立登录环境": " klik “+ Tambah” di kanan atas untuk membuat lingkungan login terpisah",
   },
   "en": {
     "群聊": "Group Chat",
@@ -3877,6 +3881,10 @@ const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
     "位成员 · 点击开始群聊": "members · click to start group chat",
     "按剩余额度自动轮换选号（与该类具体 @ 互斥）": "Automatically rotate by remaining quota (cannot be combined with explicit @ mentions in this category)",
     "· 点击全选或取消该类全部成员": "· click to select or clear all members in this category",
+    "将最近一轮各成员完成回复浓缩追加至共享上下文": "Summarize the completed replies from all members in the latest round and append them to the shared context",
+    "· 待接入": "· Coming soon",
+    "位成员": "members",
+    " 点击右上角「+ 新增」创建独立登录环境": " click “+ Add” in the top-right to create an isolated sign-in environment",
   }
 };
 const MAAM_PARTIAL_TRANSLATIONS: Record<string, Record<string, string>> = {
@@ -3989,6 +3997,10 @@ const MAAM_PARTIAL_TRANSLATIONS: Record<string, Record<string, string>> = {
     " + 新增 ": " + Tambah ",
     "正在加载「": "Sedang memuat “",
     "」": "”",
+    "检测到 UUID 归属冲突（": "Konflik kepemilikan UUID terdeteksi (",
+    "），请选择保留归属服务：": "), pilih layanan yang tetap menjadi pemilik:",
+    "打开 ": "Buka ",
+    "位成员": "anggota",
   },
   "en": {
     "Cookie 已于 ": "Cookie expired at ",
@@ -4098,6 +4110,10 @@ const MAAM_PARTIAL_TRANSLATIONS: Record<string, Record<string, string>> = {
     " + 新增 ": " + Add ",
     "正在加载「": "Loading “",
     "」": "”",
+    "检测到 UUID 归属冲突（": "UUID ownership conflict detected (",
+    "），请选择保留归属服务：": "), choose the service that should retain ownership:",
+    "打开 ": "Open ",
+    "位成员": "members",
   }
 };
 
