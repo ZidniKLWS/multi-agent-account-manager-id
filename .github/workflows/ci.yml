@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Upstream Sync"]
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: read
@@ -16,6 +20,7 @@ concurrency:
 
 jobs:
   frontend-and-relay:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     name: Frontend build and relay tests
     runs-on: ubuntu-latest
     steps:
@@ -35,9 +40,10 @@ jobs:
         run: npm run build
 
       - name: Test encrypted relay worker
-        run: node --test relay-worker/test/*.test.js
+        run: npm run test:relay
 
   rust:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     name: Rust backend tests
     runs-on: ubuntu-latest
     steps:
