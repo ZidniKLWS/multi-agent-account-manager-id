@@ -3229,7 +3229,8 @@ function render(): void {
         }
       : null;
 
-  const provider = currentProvider(snapshot);\n  
+  const provider = currentProvider(snapshot);
+  
   const isMobile = isMobilePlatform(snapshot.platform);
   const isGroupsView = !isMobile && viewMode === "groups";
   const anyGroupNeedsAuth = snapshot.groupChats.some(groupHasNeedsAuth);
