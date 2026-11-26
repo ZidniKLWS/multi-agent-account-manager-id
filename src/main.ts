@@ -3135,7 +3135,7 @@ const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
     "外观主题":"Tema Tampilan","主题":"Tema","常规":"Umum","确认":"Konfirmasi","关闭":"Tutup",
     "导入":"Impor","导出":"Ekspor","刷新":"Refresh","正在加载…":"Memuat…","加载失败":"Gagal memuat",
     "已登录":"Sudah login","未登录":"Belum login","登录":"Login","账号管理":"Manajemen Akun",
-    "语言":"Bahasa","English":"English","Bahasa Indonesia":"Bahasa Indonesia","简体中文":"中文（简体）"
+    "语言":"Bahasa","English":"English","Bahasa Indonesia":"Bahasa Indonesia","简体中文":"中文（简体）",
     "极致简洁中文": "Bahasa Indonesia yang ringkas",
     "架构与风险评审": "Tinjauan Arsitektur dan Risiko",
     "交叉事实核查": "Pemeriksaan Fakta Silang",
@@ -3359,7 +3359,7 @@ const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
     "新加坡":"Singapore","上海":"Shanghai","UTC":"UTC","深色":"Dark","浅色":"Light","跟随":"System",
     "外观主题":"Appearance","主题":"Theme","常规":"General","确认":"Confirm","关闭":"Close",
     "导入":"Import","导出":"Export","刷新":"Refresh","正在加载…":"Loading…","加载失败":"Failed to load",
-    "已登录":"Signed in","未登录":"Signed out","登录":"Sign in","账号管理":"Account Manager"
+    "已登录":"Signed in","未登录":"Signed out","登录":"Sign in","账号管理":"Account Manager",
     "极致简洁中文": "Concise Chinese",
     "架构与风险评审": "Architecture & Risk Review",
     "交叉事实核查": "Cross-check Facts",
