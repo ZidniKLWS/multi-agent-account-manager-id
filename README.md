@@ -195,6 +195,8 @@ Requirements: Node.js 22+, Rust 1.85+; Android builds require Android SDK and ND
 
 ```bash
 npm ci
+npm run build
+node --test relay-worker/test/*.test.js
 npm run tauri -- dev
 npm run tauri -- build
 bash scripts/build-ios-ipa.sh
