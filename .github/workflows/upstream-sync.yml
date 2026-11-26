@@ -2,6 +2,11 @@ name: Upstream Sync
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/localization/apply.mjs'
+      - 'localization/config.json'
   schedule:
     - cron: "0 3 * * *"
 
