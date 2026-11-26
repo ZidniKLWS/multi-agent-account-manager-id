@@ -4164,8 +4164,8 @@ function applyMaamLocalization(): void {
     }
   }
 
-  root.querySelectorAll<HTMLElement>("[placeholder], [title], [aria-label]").forEach(el => {
-    for (const attr of ["placeholder", "title", "aria-label"]) {
+  root.querySelectorAll<HTMLElement>("[placeholder], [title], [aria-label], [data-tooltip], [alt]").forEach(el => {
+    for (const attr of ["placeholder", "title", "aria-label", "data-tooltip", "alt"]) {
       const value = el.getAttribute(attr);
       if (value) el.setAttribute(attr, maamTranslateText(value));
     }
@@ -4188,7 +4188,7 @@ function applyMaamLocalization(): void {
       subtree: true,
       characterData: true,
       attributes: true,
-      attributeFilter: ["placeholder", "title", "aria-label"]
+      attributeFilter: ["placeholder", "title", "aria-label", "data-tooltip", "alt"]
     });
   }
 }
