@@ -3483,6 +3483,9 @@ const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
     "回复中": "Sedang membalas",
     "群": "grup",
     "人": "orang",
+    "不收集任何用户数据：每次同步均在本地随机生成一次性 256-bit 密钥进行 AES-256-GCM 端到端加密，密钥仅包含在二维码/同步串中，绝不上传服务端；服务端仅临时暂存纯密文，无法解密，3 分钟或拉取完成后立即销毁。": "Tidak ada data pengguna yang dikumpulkan. Setiap sinkronisasi membuat kunci 256-bit sekali pakai secara lokal untuk enkripsi end-to-end AES-256-GCM. Kunci hanya ada di kode QR/string sinkronisasi dan tidak pernah diunggah ke server. Server hanya menyimpan data terenkripsi sementara dan tidak dapat mendekripsinya; data dihapus setelah 3 menit atau setelah berhasil diambil.",
+    "默认仅通过本地局域网点对点直连（3 分钟或最多 3 次拉取后自动关闭）。": "Secara default, sinkronisasi dilakukan langsung ant perangkat melalui LAN lokal (otomatis berhenti setelah 3 menit atau maksimal 3 kali pengambilan).",
+    "已保存：": "Tersimpan: ",
   },
   "en": {
     "群聊": "Group Chat",
@@ -3841,6 +3844,9 @@ const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
     "回复中": "Replying",
     "群": "group",
     "人": "members",
+    "不收集任何用户数据：每次同步均在本地随机生成一次性 256-bit 密钥进行 AES-256-GCM 端到端加密，密钥仅包含在二维码/同步串中，绝不上传服务端；服务端仅临时暂存纯密文，无法解密，3 分钟或拉取完成后立即销毁。": "No user data is collected. Each sync creates a one-time 256-bit key locally for AES-256-GCM end-to-end encryption. The key is only included in the QR code/sync string and is never uploaded to the server. The server temporarily stores ciphertext only and cannot decrypt it; data is deleted after 3 minutes or once fetched.",
+    "默认仅通过本地局域网点对点直连（3 分钟或最多 3 次拉取后自动关闭）。": "By default, sync uses a direct peer-to-peer connection over the local LAN (automatically stops after 3 minutes or up to 3 fetches).",
+    "已保存：": "Saved: ",
   }
 };
 const MAAM_PARTIAL_TRANSLATIONS: Record<string, Record<string, string>> = {
