@@ -3902,7 +3902,7 @@ const MAAM_PARTIAL_TRANSLATIONS: Record<string, Record<string, string>> = {
     "正在下载：": "Mengunduh: ",
     "下载完成：": "Unduhan selesai: ",
     "下载失败：": "Unduhan gagal: ",
-    "读取备份文件失败:": "Gagal membaca file cadangan:"
+    "读取备份文件失败:": "Gagal membaca file cadangan:",
     "100% · 已耗尽": "100% · habis",
     "作为发送端（生成临时加密共享）": "Sebagai pengirim (membuat berbagi terenkripsi sementara)",
     "启用官网 / Cloudflare 加密中转通道": "Aktifkan kanal relay terenkripsi resmi/Cloudflare",
@@ -3940,11 +3940,8 @@ const MAAM_PARTIAL_TRANSLATIONS: Record<string, Record<string, string>> = {
     "外观主题：深色": "Tampilan: Gelap",
     "外观主题：浅色": "Tampilan: Terang",
     "外观主题：跟随系统": "Tampilan: Ikuti sistem",
-    "预计 ": "Diperkirakan ",
-    "约 ": "Sekitar ",
     " 分钟 / 最多 ": " menit / maksimal ",
     " 次拉取": " kali pengambilan",
-    "（": " (",
     " 分钟后自动销毁": " menit kemudian dihapus otomatis",
     " 个 Cookie 写入跳过": " Cookie yang dilewati saat impor",
     "/8000 字符": "/8000 karakter",
@@ -3952,13 +3949,7 @@ const MAAM_PARTIAL_TRANSLATIONS: Record<string, Record<string, string>> = {
     " 编辑「": "Edit “",
     "删除群聊「": "Hapus obrolan grup “",
     "移除「": "Hapus “",
-    "「": "“",
-    "」": "”",
     " · 待接入": " · Segera hadir",
-    "打开 ": "Buka ",
-    "账号": "akun",
-    "群": "grup",
-    "人": "orang",
     " 位成员": " anggota",
     "· 已转发": "· Diteruskan",
   },
@@ -4014,7 +4005,7 @@ const MAAM_PARTIAL_TRANSLATIONS: Record<string, Record<string, string>> = {
     "正在下载：": "Downloading: ",
     "下载完成：": "Download complete: ",
     "下载失败：": "Download failed: ",
-    "读取备份文件失败:": "Failed to read backup file:"
+    "读取备份文件失败:": "Failed to read backup file:",
     "100% · 已耗尽": "100% · exhausted",
     "作为发送端（生成临时加密共享）": "As the sender (creates temporary encrypted sharing)",
     "启用官网 / Cloudflare 加密中转通道": "enable the official/Cloudflare encrypted relay channel",
@@ -4052,24 +4043,15 @@ const MAAM_PARTIAL_TRANSLATIONS: Record<string, Record<string, string>> = {
     "外观主题：深色": "Appearance: Dark",
     "外观主题：浅色": "Appearance: Light",
     "外观主题：跟随系统": "Appearance: System",
-    "预计 ": "Estimated ",
-    "约 ": "About ",
     " 分钟 / 最多 ": " minutes / up to ",
     " 次拉取": " fetches",
-    "（": " (",
     " 分钟后自动销毁": " minutes later",
     " 个 Cookie 写入跳过": " Cookies skipped during import",
     "/8000 字符": "/8000 characters",
     " 编辑「": "Edit “",
     "删除群聊「": "Delete group chat “",
     "移除「": "Remove “",
-    "「": "“",
-    "」": "”",
     " · 待接入": " · Coming soon",
-    "打开 ": "Open ",
-    "账号": "account",
-    "群": "group",
-    "人": "members",
     " 位成员": " members",
     "· 已转发": "· Forwarded",
   }
@@ -4080,6 +4062,15 @@ function maamTranslateText(text: string): string {
   const dict = MAAM_TRANSLATIONS[maamLanguage] || {};
   const exact = dict[text];
   if (exact !== undefined) return exact;
+  const numericCount = new RegExp("^([0-9]+)(人|群|跳)$").exec(text);
+  if (numericCount) {
+    const noun = numericCount[2] === "人"
+      ? (maamLanguage === "id" ? " orang" : " members")
+      : numericCount[2] === "群"
+        ? (maamLanguage === "id" ? " grup" : " groups")
+        : (maamLanguage === "id" ? " lompatan" : " hops");
+    return numericCount[1] + noun;
+  }
   const partial = MAAM_PARTIAL_TRANSLATIONS[maamLanguage] || {};
   let result = text;
   const entries = Object.entries(partial).sort((a, b) => b[0].length - a[0].length);
@@ -4104,7 +4095,7 @@ function applyMaamLocalization(): void {
     const original = node.textContent || "";
     const trimmed = original.trim();
     if (!trimmed) continue;
-    if (node.parentElement?.closest("script,style,textarea,pre,code,[contenteditable='true']")) continue;
+    if (node.parentElement?.closest("script,style,textarea,pre,code,[contenteditable='true'],.group-bubble,.group-msg-text,.group-row-preview,.group-msg-preview,.account-alias")) continue;
     const translated = maamTranslateText(trimmed);
     if (translated !== trimmed) {
       const leading = original.match(/^\s*/)?.[0] || "";
