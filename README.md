@@ -111,7 +111,7 @@ A cross-platform (macOS / Windows / Android / iOS) multi-account isolation and f
 
 ## Download & Installation
 
-Visit [GitHub Releases](https://github.com/ldjx7/multi-agent-account-manager/releases) to download the installer for your platform:
+Visit the [official upstream GitHub Releases](https://github.com/ldjx7/multi-agent-account-manager/releases) for stable installers across platforms. This fork also publishes Windows preview installers in its [own Releases](https://github.com/ZidniKLWS/multi-agent-account-manager-id/releases).
 
 | Platform | Download File | Architecture / System Requirements |
 | --- | --- | --- |
@@ -178,14 +178,10 @@ Visit [GitHub Releases](https://github.com/ldjx7/multi-agent-account-manager/rel
 ## In-App Updates & Releases
 
 - **Check for updates in the client**: On desktop, click **Update** at the bottom of the left sidebar. On Android, tap the download icon in the top-right corner. The app checks for the latest version and can download, verify, and install it. It also performs a silent check on startup and displays a notification dot when an update is available.
-- **Maintainer release process**:
-  1. Update the application version in `package.json`, `package-lock.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, and `src-tauri/tauri.conf.json`.
-  2. Commit and push a `v*` tag. GitHub Actions will automatically build installers for all four platforms (macOS / Windows / Android / iOS), generate `latest.json`, and create a Release:
-
-     ```bash
-     git tag v0.2.0
-     git push origin v0.2.0
-     ```
+- **Maintainer release process in this fork**:
+  1. Keep the application version synchronized in `package.json`, `package-lock.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, and `src-tauri/tauri.conf.json`.
+  2. Run the CI checks before publishing changes. The checked-in Windows workflow builds an NSIS installer after the `CI` workflow succeeds on `main`, uploads the installer as an artifact, and creates a Windows prerelease in this repository.
+  3. This fork does **not** currently contain an automated four-platform release pipeline or a locally generated `latest.json`. Use the official upstream Releases for stable macOS / Windows / Android / iOS installers until platform-specific release jobs and signing credentials are configured here.
 
 ---
 
@@ -196,7 +192,7 @@ Requirements: Node.js 22+, Rust 1.85+; Android builds require Android SDK and ND
 ```bash
 npm ci
 npm run build
-node --test relay-worker/test/*.test.js
+npm run test:relay
 npm run tauri -- dev
 npm run tauri -- build
 bash scripts/build-ios-ipa.sh
