@@ -1067,7 +1067,10 @@ function applyMaamLocalization(): void {
   root.querySelectorAll<HTMLElement>("[placeholder], [title], [aria-label], [data-tooltip], [alt]").forEach(el => {
     for (const attr of ["placeholder", "title", "aria-label", "data-tooltip", "alt"]) {
       const value = el.getAttribute(attr);
-      if (value) el.setAttribute(attr, maamTranslateText(value));
+      if (value) {
+        const translated = maamTranslateText(value);
+        if (translated !== value) el.setAttribute(attr, translated);
+      }
     }
   });
 
