@@ -38,20 +38,24 @@ export class RelayDropDO {
   }
 
   async alarm() {
-    // Keep expiry cleanup ordered with fetch operations for this drop.
+    // Alarms are infrequent. Briefly block delivery while reconciling the
+    // record and its alarm so an older alarm cannot delete a newly-created drop.
     await this.state.blockConcurrencyWhile(async () => {
-      await this.state.storage.deleteAll();
-      await this.state.storage.deleteAlarm();
+      const drop = await this.state.storage.get("drop");
+      if (!drop || Date.now() >= drop.expiresAtMs) {
+        await this.state.storage.deleteAll();
+        // The Worker compatibility date predates the flag that makes
+        // deleteAll() remove alarms automatically.
+        await this.state.storage.deleteAlarm();
+        return;
+      }
+
+      // A newer drop may have replaced the one that scheduled this alarm.
+      await this.state.storage.setAlarm(drop.expiresAtMs);
     });
   }
 
   async fetch(request) {
-    // Durable Object handlers can interleave at await points. Serialize the
-    // read/verify/consume sequence so concurrent GETs cannot exceed the limit.
-    return this.state.blockConcurrencyWhile(() => this.handleRequest(request));
-  }
-
-  async handleRequest(request) {
     const method = request.method;
 
     if (method === "POST") {
@@ -80,99 +84,106 @@ export class RelayDropDO {
         return jsonResp(400, { error: "invalid_fields" });
       }
 
-      const existing = await this.state.storage.get("drop");
-      if (existing && Date.now() < existing.expiresAtMs) {
-        return jsonResp(409, { error: "already_exists" });
-      }
-
-      // A stale record may remain until its alarm runs. Remove it before
-      // reusing the same Durable Object ID so an old alarm cannot delete a
-      // newly-created drop.
-      if (existing) {
-        await this.state.storage.deleteAll();
-        await this.state.storage.deleteAlarm();
-      }
-
       const rawTtl = Number.isFinite(payload.ttlSecs) ? Math.trunc(payload.ttlSecs) : 180;
       const rawMax = Number.isFinite(payload.maxDownloads) ? Math.trunc(payload.maxDownloads) : 3;
       const ttlSecs = Math.min(300, Math.max(30, rawTtl));
       const maxDownloads = Math.min(3, Math.max(1, rawMax));
       const expiresAtMs = Date.now() + ttlSecs * 1000;
 
-      const drop = {
-        nonce: payload.nonce,
-        ciphertext: payload.ciphertext,
-        tokenHash: payload.tokenHash,
-        deleteTokenHash: payload.deleteTokenHash,
-        remaining: maxDownloads,
-        badAttempts: 0,
-        expiresAtMs,
-      };
+      // Atomic read/check/write: concurrent creation attempts cannot replace
+      // an unexpired drop or both claim to have created the same ID.
+      const created = await this.state.storage.transaction(async (txn) => {
+        const existing = await txn.get("drop");
+        if (existing && Date.now() < existing.expiresAtMs) {
+          return false;
+        }
 
-      await this.state.storage.put("drop", drop);
+        await txn.put("drop", {
+          nonce: payload.nonce,
+          ciphertext: payload.ciphertext,
+          tokenHash: payload.tokenHash,
+          deleteTokenHash: payload.deleteTokenHash,
+          remaining: maxDownloads,
+          badAttempts: 0,
+          expiresAtMs,
+        });
+        return true;
+      });
+
+      if (!created) {
+        return jsonResp(409, { error: "already_exists" });
+      }
+
+      // setAlarm() replaces any previous alarm for this object. An alarm
+      // already in flight rechecks the current record before cleaning it.
       await this.state.storage.setAlarm(expiresAtMs);
       return jsonResp(201, { ok: true, expiresAtMs });
     }
 
     if (method === "GET") {
-      const drop = await this.state.storage.get("drop");
-      if (!drop || Date.now() >= drop.expiresAtMs) {
-        await this.state.storage.deleteAll();
-        await this.state.storage.deleteAlarm();
-        return jsonResp(404, { error: "not_found" });
-      }
-
       const token = (request.headers.get("x-relay-token") || "").trim();
       if (!token || token.length > 256) {
         return jsonResp(403, { error: "forbidden" });
       }
-
+      // Perform the expensive digest before opening the storage transaction.
       const gotHash = await sha256Hex(token);
-      if (!timingSafeEqualHex(gotHash, drop.tokenHash)) {
-        drop.badAttempts += 1;
-        if (drop.badAttempts >= 5) {
-          await this.state.storage.deleteAll();
-          await this.state.storage.deleteAlarm();
-        } else {
-          await this.state.storage.put("drop", drop);
-        }
-        return jsonResp(403, { error: "forbidden" });
-      }
 
-      // This decrement and deletion are protected by blockConcurrencyWhile
-      // in fetch(), so each successful response consumes exactly one slot.
-      const remaining = drop.remaining - 1;
-      const out = { nonce: drop.nonce, ciphertext: drop.ciphertext };
-      if (remaining <= 0) {
-        await this.state.storage.deleteAll();
-        await this.state.storage.deleteAlarm();
-      } else {
-        drop.remaining = remaining;
-        await this.state.storage.put("drop", drop);
-      }
-      return jsonResp(200, out);
+      const outcome = await this.state.storage.transaction(async (txn) => {
+        const drop = await txn.get("drop");
+        if (!drop || Date.now() >= drop.expiresAtMs) {
+          if (drop) await txn.delete("drop");
+          return { status: 404, body: { error: "not_found" } };
+        }
+
+        if (!timingSafeEqualHex(gotHash, drop.tokenHash)) {
+          drop.badAttempts += 1;
+          if (drop.badAttempts >= 5) {
+            await txn.delete("drop");
+          } else {
+            await txn.put("drop", drop);
+          }
+          return { status: 403, body: { error: "forbidden" } };
+        }
+
+        const body = { nonce: drop.nonce, ciphertext: drop.ciphertext };
+        if (drop.remaining <= 1) {
+          await txn.delete("drop");
+        } else {
+          drop.remaining -= 1;
+          await txn.put("drop", drop);
+        }
+        return { status: 200, body };
+      });
+
+      // Keep the alarm until its deadline. It is harmless if the drop has
+      // already been consumed, and this avoids racing a newer drop's alarm.
+      return jsonResp(outcome.status, outcome.body);
     }
 
     if (method === "DELETE") {
-      const drop = await this.state.storage.get("drop");
-      if (!drop || Date.now() >= drop.expiresAtMs) {
-        await this.state.storage.deleteAll();
-        await this.state.storage.deleteAlarm();
-        return jsonResp(404, { error: "not_found" });
-      }
-
       const token = (request.headers.get("x-relay-token") || "").trim();
       if (!token || token.length > 256) {
         return jsonResp(403, { error: "forbidden" });
       }
-
       const gotHash = await sha256Hex(token);
-      if (!timingSafeEqualHex(gotHash, drop.deleteTokenHash)) {
-        return jsonResp(403, { error: "forbidden" });
-      }
 
-      await this.state.storage.deleteAll();
-      await this.state.storage.deleteAlarm();
+      const deleted = await this.state.storage.transaction(async (txn) => {
+        const drop = await txn.get("drop");
+        if (!drop || Date.now() >= drop.expiresAtMs) {
+          if (drop) await txn.delete("drop");
+          return "not_found";
+        }
+        if (!timingSafeEqualHex(gotHash, drop.deleteTokenHash)) {
+          return "forbidden";
+        }
+        await txn.delete("drop");
+        return "deleted";
+      });
+
+      // Leave the expiry alarm in place. If a new drop is created before it
+      // fires, alarm() will observe the new expiry and reschedule it.
+      if (deleted === "not_found") return jsonResp(404, { error: "not_found" });
+      if (deleted === "forbidden") return jsonResp(403, { error: "forbidden" });
       return jsonResp(200, { deleted: true });
     }
 
