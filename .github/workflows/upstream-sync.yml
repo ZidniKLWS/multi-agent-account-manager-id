@@ -37,6 +37,7 @@ jobs:
             --exclude='.github/workflows/' \
             --exclude='localization/' \
             --exclude='scripts/localization/' \
+            --exclude='README.md' \
             /tmp/upstream/ ./ 
           node scripts/localization/apply.mjs
           git add -A
