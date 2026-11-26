@@ -103,6 +103,6 @@ const renderCloseAnchor = "  const provider = currentProvider(snapshot);";
 source = source.replace(renderCloseAnchor, renderCloseAnchor + "\\n  ");
 const finalAnchor = "  root.innerHTML = `";
 if (!source.includes(finalAnchor)) throw new Error("Localization patch: render template anchor not found");
-source = source.replace(/(root.innerHTML = \`[\\s\\S]*?\`;)\\n/g, "$1\\n    applyMaamLocalization();\\n    bindMaamLanguageSelector();\\n");
+source = source.replace(/(root.innerHTML = \`[\s\S]*?\`;)\n/g, "$1\n    applyMaamLocalization();\n    bindMaamLanguageSelector();\n");
 fs.writeFileSync(file, source);
 console.log("Localization overlay patched into src/main.ts");
