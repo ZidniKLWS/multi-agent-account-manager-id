@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "languages": ["en", "id", "zh"],
+  "defaultLanguage": "en",
+  "languageNames": {
+    "en": "English",
+    "id": "Bahasa Indonesia",
+    "zh": "简体中文"
+  },
+  "note": "Translations are applied by the localization overlay script. Dictionary coverage will expand over time."
+}
