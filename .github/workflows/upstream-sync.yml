@@ -33,9 +33,10 @@ jobs:
             --exclude='localization/' \
             --exclude='scripts/localization/' \
             /tmp/upstream/ ./ 
-          node scripts/localization/apply.mjs\n          git add -A
+          node scripts/localization/apply.mjs\n          node scripts/localization/apply.mjs
+          git add -A
           if git diff --cached --quiet; then
-            echo "No upstream changes detected."
+            echo "No source or localization changes detected."
             exit 0
           fi
           git config user.name "github-actions[bot]"
