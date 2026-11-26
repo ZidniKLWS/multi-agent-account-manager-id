@@ -35,7 +35,7 @@ const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
     "外观主题":"Tema Tampilan","主题":"Tema","常规":"Umum","确认":"Konfirmasi","关闭":"Tutup",
     "导入":"Impor","导出":"Ekspor","刷新":"Refresh","正在加载…":"Memuat…","加载失败":"Gagal memuat",
     "已登录":"Sudah login","未登录":"Belum login","登录":"Login","账号管理":"Manajemen Akun",
-    "语言":"Bahasa","English":"English","Bahasa Indonesia":"Bahasa Indonesia","简体中文":"简 Chinese"
+    "语言":"Bahasa","English":"English","Bahasa Indonesia":"Bahasa Indonesia","简体中文":"中文（简体）"
     "极致简洁中文": "Bahasa Indonesia yang ringkas",
     "架构与风险评审": "Tinjauan Arsitektur dan Risiko",
     "交叉事实核查": "Pemeriksaan Fakta Silang",
