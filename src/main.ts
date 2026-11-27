@@ -3431,8 +3431,10 @@ const MAAM_TRANSLATIONS: Record<Exclude<MaamLanguage, "en">, Record<string, stri
     "Copying…": "复制中…",
     "Cookie Copied": "已复制 Cookie",
     "[User]": "[用户]",
-    "Duohao": "叠号",
-    "Duohao · AI Account Switcher": "叠号 · AI 助手账号切换器",
+    "Duohao": "MusK",
+    "Duohao · AI Account Switcher": "MusK · AI 助手账号切换器",
+    "MusK": "MusK",
+    "MusK · AI Account Switcher": "MusK · AI 助手账号切换器",
     "No accounts yet": "暂无账号",
     "Refresh ready account quotas": "刷新已就绪账号额度"
   },
@@ -3648,8 +3650,10 @@ const MAAM_TRANSLATIONS: Record<Exclude<MaamLanguage, "en">, Record<string, stri
     "Copying…": "Menyalin…",
     "Cookie Copied": "Cookie disalin",
     "[User]": "[Pengguna]",
-    "Duohao": "Duohao",
-    "Duohao · AI Account Switcher": "Duohao · Pengalih Akun AI",
+    "Duohao": "MusK",
+    "Duohao · AI Account Switcher": "MusK · Pengalih Akun AI",
+    "MusK": "MusK",
+    "MusK · AI Account Switcher": "MusK · Pengalih Akun AI",
     "No accounts yet": "Belum ada akun",
     "Refresh ready account quotas": "Perbarui kuota akun yang siap"
   }
@@ -3876,8 +3880,8 @@ function render(): void {
     root.innerHTML = `
       <div class="desktop-shell">
         <aside class="service-rail">
-          <div class="rail-brand" title="Duohao · AI Account Switcher">
-            <img src="/logos/app-logo.svg" alt="Duohao" class="rail-brand-img" draggable="false" />
+          <div class="rail-brand" title="MusK · AI Account Switcher">
+            <img src="/logos/app-logo.svg" alt="MusK" class="rail-brand-img" draggable="false" />
           </div>
           <div class="rail-divider"></div>
           <div class="rail-providers">

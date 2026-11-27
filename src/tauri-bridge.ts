@@ -394,7 +394,7 @@ function getSiteAdaptersSnapshot(): SiteAdaptersSnapshot {
   }
   return {
     adapters,
-    overridePath: "~/.config/duohao/site-adapters.json",
+    overridePath: "~/.config/musk/site-adapters.json",
     hasOverrides,
     overrideJson,
   };
@@ -1453,7 +1453,7 @@ async function webInvoke<T>(cmd: string, args: Record<string, unknown> = {}): Pr
       };
       const bundleJson = JSON.stringify(payload, null, 2);
       return {
-        filename: `duohao-backup-${new Date().toISOString().slice(0, 10)}.maam`,
+        filename: `musk-backup-${new Date().toISOString().slice(0, 10)}.maam`,
         savedPath: null,
         downloadId: null,
         bundleJson,

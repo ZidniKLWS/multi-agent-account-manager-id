@@ -1,8 +1,8 @@
-# Duohao (Multi-Agent Account Manager)
+# MusK (Multi-Agent Account Manager)
 
 [![LINUX DO](https://img.shields.io/badge/Community-LINUX%20DO-0064e0?style=flat-square)](https://linux.do/)
 
-A cross-platform (macOS / Windows / Android / iOS) multi-account isolation and fast-switching tool for AI assistants, built with Tauri 2. The installed application is branded as Duohao (original app name: 叠号).
+A cross-platform (macOS / Windows / Android / iOS) multi-account isolation and fast-switching tool for AI assistants, built with Tauri 2. The installed application is branded as MusK.
 
 ## Supported Services & Key Features
 

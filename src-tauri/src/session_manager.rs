@@ -35,7 +35,7 @@ use tokio::sync::Mutex;
 use url::Url;
 use uuid::Uuid;
 
-pub const APP_TITLE: &str = "叠号";
+pub const APP_TITLE: &str = "MusK";
 const MAX_GROUP_MEMBERS: usize = 30;
 #[cfg(desktop)]
 const REVIEW_INLINE_CHAR_LIMIT: usize = 1200;
