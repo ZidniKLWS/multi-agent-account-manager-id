@@ -19,12 +19,20 @@ export interface ProviderInfo {
   verifiedMethods: string[];
 }
 
+export interface WebDavConfig {
+  url: string;
+  username: string;
+  password: string;
+  filename: string;
+}
+
 export interface AppSettings {
   minimizeToTray: boolean;
   globalShortcut: string;
   autoApprove: boolean;
   isolateSameProxyKeepAlive: boolean;
   silentSyncIntervalMins: number;
+  webdav?: WebDavConfig;
 }
 
 export interface ProxyTestResult {
@@ -173,231 +181,6 @@ export interface AccountPageError {
   message: string;
 }
 
-export type RoutingStrategy =
-  | "smart_balanced"
-  | "highest_quota"
-  | "least_busy"
-  | "priority_based"
-  | "manual";
-
-export type AccountFailureAction = "alternate" | "retry" | "stop";
-
-export interface AccountRuleConfig {
-  account: AccountKey;
-  priority: number; // 1..100, higher means preferred
-  maxConcurrent: number; // default 1 for WebView safety
-  allowed: boolean;
-  allowedAgentIds: string[]; // empty = all agents allowed
-}
-
-export interface RouterWeights {
-  quota: number;
-  health: number;
-  load: number;
-  priority: number;
-}
-
-export interface RouterPolicyConfig {
-  strategy: RoutingStrategy;
-  minQuotaPercent: number;
-  defaultMaxConcurrent: number;
-  cooldownSecs: number;
-  onFailure: AccountFailureAction;
-  allowFallback: boolean;
-  weights: RouterWeights;
-  manualAccount: AccountKey | null;
-  accountRules: AccountRuleConfig[];
-  cooldownsUntilMs: Record<string, number>;
-  lastAssignedMs: Record<string, number>;
-}
-
-export interface AccountLease {
-  id: string;
-  account: AccountKey;
-  holderType: "task_node" | "group_chat";
-  holderId: string;
-  holderLabel: string;
-  acquiredAtMs: number;
-  expiresAtMs: number;
-}
-
-export interface RouterCandidateEval {
-  account: AccountRecord;
-  eligible: boolean;
-  reasons: string[];
-  score: number;
-  quotaScore: number;
-  healthScore: number;
-  loadScore: number;
-  priorityScore: number;
-  activeLeases: number;
-  maxConcurrent: number;
-  inCooldown: boolean;
-  cooldownRemainingSecs: number;
-  remainingQuotaPct: number;
-}
-
-export interface RoutingDecisionPreview {
-  providerId: ProviderId;
-  strategy: RoutingStrategy;
-  selected: RouterCandidateEval | null;
-  alternatives: RouterCandidateEval[];
-  excluded: RouterCandidateEval[];
-  reasoning: string[];
-}
-
-export type AgentExecutionTarget = "smart_router" | "pinned_account" | "external_agent";
-
-export interface AgentResourcePolicy {
-  targetType: AgentExecutionTarget;
-  providerId: ProviderId;
-  routingMode: RoutingStrategy;
-  pinnedAccount: AccountKey | null;
-  externalAgentId: string | null;
-  accountPool: AccountKey[]; // empty = any eligible account for providerId
-  maxConcurrentTasks: number;
-}
-
-export interface AgentProfile {
-  id: string;
-  name: string;
-  role: string;
-  description: string;
-  enabled: boolean;
-  instructions: string;
-  capabilities: string[];
-  outputFormat: string;
-  reviewRequired: boolean;
-  resourcePolicy: AgentResourcePolicy;
-  stats: {
-    runs: number;
-    successes: number;
-    failures: number;
-    avgLatencyMs: number;
-  };
-  createdAtMs: number;
-}
-
-export type PipelineNodeKind =
-  | "start"
-  | "agent"
-  | "parallel"
-  | "review"
-  | "condition"
-  | "human_approval"
-  | "output";
-
-export interface PipelineConditionRule {
-  metric: "min_length" | "contains_keyword" | "not_contains_keyword";
-  value: string;
-  onPassLabel: string;
-  onFailLabel: string;
-  actionOnFail: "retry_previous" | "halt" | "continue_with_warning";
-}
-
-export interface PipelineStep {
-  id: string;
-  title: string;
-  kind: PipelineNodeKind;
-  agentId: string | null; // for agent / review nodes
-  parallelBranches?: Array<{
-    id: string;
-    title: string;
-    agentId: string;
-  }>;
-  maxRetries: number;
-  condition?: PipelineConditionRule;
-  approvalPrompt?: string;
-}
-
-export interface WorkflowPipeline {
-  id: string;
-  name: string;
-  description: string;
-  version: number;
-  steps: PipelineStep[];
-  createdAtMs: number;
-  updatedAtMs: number;
-}
-
-export type TaskStatus =
-  | "pending"
-  | "running"
-  | "paused"
-  | "waiting_approval"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "interrupted";
-
-export type TaskNodeStatus =
-  | "pending"
-  | "ready"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "waiting_approval"
-  | "skipped";
-
-export interface TaskNodeExecution {
-  stepId: string;
-  title: string;
-  kind: PipelineNodeKind;
-  agentId: string | null;
-  agentName: string;
-  status: TaskNodeStatus;
-  attempt: number;
-  allocatedResourceLabel: string | null;
-  allocatedAccount: AccountKey | null;
-  leaseId: string | null;
-  startedAtMs: number | null;
-  completedAtMs: number | null;
-  error: string | null;
-  summary: string | null;
-}
-
-export interface TaskArtifact {
-  id: string;
-  stepId: string;
-  title: string;
-  agentName: string;
-  format: string;
-  content: string;
-  createdAtMs: number;
-}
-
-export interface TaskEventLog {
-  id: string;
-  timestampMs: number;
-  level: "info" | "success" | "warn" | "error";
-  event: string;
-  detail: string;
-  stepId?: string;
-}
-
-export interface OrchestratedTask {
-  id: string;
-  title: string;
-  objective: string;
-  context: string;
-  outputFormat: string;
-  workflowId: string;
-  workflowName: string;
-  routingStrategy: RoutingStrategy;
-  status: TaskStatus;
-  currentStepIndex: number;
-  pauseRequested: boolean;
-  cancelRequested: boolean;
-  createdAtMs: number;
-  startedAtMs: number | null;
-  completedAtMs: number | null;
-  nodeExecutions: TaskNodeExecution[];
-  artifacts: TaskArtifact[];
-  events: TaskEventLog[];
-  error: string | null;
-}
-
 export interface ManagerSnapshot {
   platform: string;
   providers: ProviderInfo[];
@@ -419,12 +202,6 @@ export interface ManagerSnapshot {
   externalAgents: ExternalAgentRecord[];
   accountErrors?: AccountPageError[];
   officialRelayUrl?: string | null;
-  routerPolicy?: RouterPolicyConfig;
-  accountLeases?: AccountLease[];
-  agents?: AgentProfile[];
-  workflows?: WorkflowPipeline[];
-  tasks?: OrchestratedTask[];
-  activeTaskId?: string | null;
 }
 
 export interface UpdateCheckResult {
@@ -499,4 +276,18 @@ export interface LanSyncShareInfo {
 export interface ScanQrResult {
   content: string;
   cancelled: boolean;
+}
+
+export interface WebDavTestResult {
+  ok: boolean;
+  remoteUrl: string;
+  fileExists: boolean;
+  message: string;
+}
+
+export interface WebDavPushResult {
+  remoteUrl: string;
+  accountCount: number;
+  cookieAccountCount: number;
+  sizeBytes: number;
 }

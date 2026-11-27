@@ -19,6 +19,3 @@ src-tauri/plugins/account-session/ios/.build
 *.p12
 keystore.properties
 .wrangler/
-.aistudio/
-.playwright-cli/
-bun.lock
