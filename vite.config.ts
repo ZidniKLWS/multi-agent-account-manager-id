@@ -5,16 +5,11 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig({
   clearScreen: false,
   server: {
-    port: 1420,
+    port: 3000,
     strictPort: true,
-    host: host || false,
-    hmr: host
-      ? {
-          protocol: "ws",
-          host,
-          port: 1421,
-        }
-      : undefined,
+    host: host || "0.0.0.0",
+    allowedHosts: true,
+    hmr: undefined,
     watch: {
       ignored: ["**/src-tauri/**"],
     },

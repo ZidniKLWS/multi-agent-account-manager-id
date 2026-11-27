@@ -1,5 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { invoke, isTauriRuntime, listen } from "./tauri-bridge";
 import "./styles.css";
 import type {
   AccountKey,
@@ -28,6 +27,19 @@ import type {
   UpdateCheckResult,
   UpdateProgressEvent,
 } from "./types";
+import {
+  bindSmartRouterEvents,
+  renderSmartRouterMiddle,
+  renderSmartRouterStage,
+  resetSmartRouterDraftFromSnapshot,
+  type SmartRouterViewDeps,
+} from "./features/smart-router-view";
+import {
+  bindAgentCenterEvents,
+  renderAgentCenterMiddle,
+  renderAgentCenterStage,
+  type AgentCenterViewDeps,
+} from "./features/agent-center-view";
 
 type AccountDraft = {
   draft: string;
@@ -43,13 +55,13 @@ type AccountDraft = {
 };
 
 const TIMEZONE_PRESETS: Array<{ label: string; value: string }> = [
-  { label: "跟随系统", value: "" },
-  { label: "纽约", value: "America/New_York" },
-  { label: "洛杉矶", value: "America/Los_Angeles" },
-  { label: "伦敦", value: "Europe/London" },
-  { label: "东京", value: "Asia/Tokyo" },
-  { label: "新加坡", value: "Asia/Singapore" },
-  { label: "上海", value: "Asia/Shanghai" },
+  { label: "Follow System", value: "" },
+  { label: "New York", value: "America/New_York" },
+  { label: "Los Angeles", value: "America/Los_Angeles" },
+  { label: "London", value: "Europe/London" },
+  { label: "Tokyo", value: "Asia/Tokyo" },
+  { label: "Singapore", value: "Asia/Singapore" },
+  { label: "Shanghai", value: "Asia/Shanghai" },
   { label: "UTC", value: "UTC" },
 ];
 
@@ -142,19 +154,19 @@ const PROVIDER_LOGOS: Record<string, ProviderLogoSpec> = {
 
 const GROUP_SKILL_PRESETS: Array<Omit<GroupSharedSkill, "id" | "enabled">> = [
   {
-    name: "极致简洁中文",
-    description: "约束各成员直接给结论和关键点，禁止寒暄和铺垫。",
-    content: "统一使用简体中文回复；直接给结论、关键依据和可执行方案，禁止客套和冗余铺垫。",
+    name: "Concise English",
+    description: "Require members to give direct conclusions and key points without filler.",
+    content: "Always respond in concise English; go straight to conclusions, key rationale, and actionable steps without pleasantries or filler.",
   },
   {
-    name: "架构与风险评审",
-    description: "从稳定性、边界情况、安全性和性能四个维度输出意见。",
-    content: "分析技术方案时优先检查边界情况、并发竞争、权限安全与资源占用，明确指出取舍与潜在风险。",
+    name: "Architecture & Risk Review",
+    description: "Evaluate stability, edge cases, security, and performance.",
+    content: "When analyzing technical designs, prioritize edge cases, concurrency races, permission security, and resource usage, and clearly call out trade-offs and risks.",
   },
   {
-    name: "交叉事实核查",
-    description: "要求先指出前序发言或前提中的漏洞，再补充新结论。",
-    content: "若共享上下文或前序成员发言存在矛盾、假设漏洞或遗漏，请先指出修正，再给出补充判断。",
+    name: "Cross Fact-Check",
+    description: "Point out flaws in prior statements or assumptions before adding new conclusions.",
+    content: "If shared context or prior member replies contain contradictions, flawed assumptions, or omissions, correct them first before adding your own assessment.",
   },
 ];
 
@@ -186,7 +198,7 @@ const EXTERNAL_AGENT_PRESETS: Array<{
     args: "",
   },
   {
-    label: "Ollama 本地",
+    label: "Ollama Local",
     kind: "openai_api",
     name: "Ollama-Qwen",
     baseUrl: "http://127.0.0.1:11434/v1",
@@ -230,6 +242,8 @@ const ICON_GROUP = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" 
 const ICON_PIN = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/><line x1="12" x2="12" y1="7" y2="13"/><line x1="15" x2="9" y1="10" y2="10"/></svg>`;
 const ICON_SYNC = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`;
 const ICON_QR_SCAN = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" x2="17" y1="12" y2="12"/></svg>`;
+const ICON_ROUTER = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8 7.5 11 16"/><path d="M16 7.5 13 16"/><path d="M8.5 6h7"/></svg>`;
+const ICON_AGENT_CENTER = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="3"/><path d="M8 10h2"/><path d="M14 10h2"/><path d="M9 14h6"/><path d="M8 21h8"/><path d="M12 18v3"/></svg>`;
 const syncingMsgIds = new Set<string>();
 
 const THEME_STORAGE_KEY = "maam_theme_mode";
@@ -260,9 +274,9 @@ function applyTheme(): void {
 }
 
 function themeLabel(mode: ThemeMode): string {
-  if (mode === "dark") return "深色";
-  if (mode === "light") return "浅色";
-  return "跟随";
+  if (mode === "dark") return "Dark";
+  if (mode === "light") return "Light";
+  return "System";
 }
 
 function themeIcon(mode: ThemeMode): string {
@@ -296,8 +310,9 @@ let snapshot: ManagerSnapshot | null = null;
 let modal: ModalMode = { kind: "none" };
 let optimisticSwitching: AccountKey | null = null;
 let busy = false;
-let viewMode: "provider" | "groups" = "provider";
+let viewMode: "provider" | "groups" | "router" | "agent_center" = "provider";
 let lastGroupListScroll = 0;
+let lastFeatureStageScroll = 0;
 let shouldAnimateModal = false;
 let modalOverlayScrollTop = 0;
 let groupMemberPickerScrollTop = 0;
@@ -380,6 +395,8 @@ function syncViewModeFromSnapshot(state: ManagerSnapshot | null): void {
   }
   if (state.activeGroupId) {
     viewMode = "groups";
+  } else if (viewMode === "router" || viewMode === "agent_center") {
+    return;
   } else if (state.activeAccount || state.switchingAccount) {
     viewMode = "provider";
   }
@@ -481,7 +498,7 @@ function resolveMemberCategory(
     return { id: "api", label: "OpenAI API" };
   }
   if (key.providerId === "cli") {
-    return { id: "cli", label: "本地 CLI" };
+    return { id: "cli", label: "Local CLI" };
   }
   const pInfo = state.providers.find((p) => p.id === key.providerId);
   return {
@@ -625,12 +642,12 @@ function resolveQuotaState(acc: AccountRecord): {
     const planDepleted =
       (planUsed !== null && planUsed >= 100) ||
       planVal.includes("用尽") ||
-      planVal.includes("DEPLETED");
+      /DEPLETED|EXHAUSTED/i.test(planVal);
     const planLow =
       !planDepleted &&
       ((planUsed !== null && planUsed >= 85) ||
         planVal.includes("偏低") ||
-        planVal.includes("LOW"));
+        /\bLOW\b/i.test(planVal));
     const hasExtra = Boolean(
       d.extraLabel || d.extraValue || d.extraUsedPercent !== null
     );
@@ -641,55 +658,56 @@ function resolveQuotaState(acc: AccountRecord): {
       ((extraUsed !== null && extraUsed >= 100) ||
         extraVal.includes("用尽") ||
         extraVal.includes("耗尽") ||
-        extraVal.includes("DEPLETED") ||
-        /剩余\s*0(\s|个|口|$)/.test(extraVal));
+        /DEPLETED|EXHAUSTED/i.test(extraVal) ||
+        /剩余\s*0(\s|个|口|$)/.test(extraVal) ||
+        /\b0%\s*left\b/i.test(extraVal));
     const extraLow =
       hasExtra &&
       !extraDepleted &&
       ((extraUsed !== null && extraUsed >= 85) ||
         extraVal.includes("偏低") ||
-        extraVal.includes("LOW"));
+        /\bLOW\b/i.test(extraVal));
     const extraIsCap = Boolean(d.extraLabel && /月|monthly/i.test(d.extraLabel));
 
     if (extraIsCap) {
       if (planDepleted) {
-        return { status: "critical", label: "日满", extraDepleted };
+        return { status: "critical", label: "Daily cap", extraDepleted };
       }
       if (extraDepleted) {
-        return { status: "critical", label: "月满", extraDepleted };
+        return { status: "critical", label: "Monthly cap", extraDepleted };
       }
       if (planLow || extraLow) {
-        return { status: "low", label: "偏低", extraDepleted };
+        return { status: "low", label: "Low", extraDepleted };
       }
       return { status: "normal", label: "", extraDepleted };
     }
 
     if (planDepleted) {
       if (!hasExtra || extraDepleted) {
-        return { status: "critical", label: "用尽", extraDepleted };
+        return { status: "critical", label: "Exhausted", extraDepleted };
       }
       if (extraLow) {
-        return { status: "low", label: "偏低", extraDepleted };
+        return { status: "low", label: "Low", extraDepleted };
       }
-      return { status: "extra", label: "用额外", extraDepleted };
+      return { status: "extra", label: "Extra", extraDepleted };
     }
     if (planLow) {
       if (!hasExtra || extraDepleted) {
-        return { status: "low", label: "偏低", extraDepleted };
+        return { status: "low", label: "Low", extraDepleted };
       }
       return { status: "normal", label: "", extraDepleted };
     }
     return { status: "normal", label: "", extraDepleted };
   }
 
-  if (acc.quotaPercent === 0 || Boolean(acc.quotaText?.includes("用尽"))) {
-    return { status: "critical", label: "用尽", extraDepleted: false };
+  if (acc.quotaPercent === 0 || Boolean(acc.quotaText?.includes("用尽") || /exhausted|depleted/i.test(acc.quotaText ?? ""))) {
+    return { status: "critical", label: "Exhausted", extraDepleted: false };
   }
   if (
     (typeof acc.quotaPercent === "number" && acc.quotaPercent <= 15) ||
-    Boolean(acc.quotaText?.includes("偏低"))
+    Boolean(acc.quotaText?.includes("偏低") || /\blow\b/i.test(acc.quotaText ?? ""))
   ) {
-    return { status: "low", label: "偏低", extraDepleted: false };
+    return { status: "low", label: "Low", extraDepleted: false };
   }
   return { status: "normal", label: "", extraDepleted: false };
 }
@@ -756,8 +774,8 @@ function formatShortResetText(raw: string | null): string {
   if (!clean) return "";
   const m = clean.match(/^(?:每周限额将在|周限额重置时间[:：]?|将在)\s*(.+?)\s*$/);
   if (m && m[1]) {
-    const inner = m[1].trim();
-    return inner.endsWith("重置") ? inner : `${inner}重置`;
+    const inner = m[1].replace(/重置$/, "").trim();
+    return `Resets ${inner}`;
   }
   return clean;
 }
@@ -773,18 +791,18 @@ function formatShortExtraText(
   ) {
     return null;
   }
-  const prefix = detail.extraLabel && /月|monthly/i.test(detail.extraLabel) ? "月" : "额外";
+  const prefix = detail.extraLabel && /月|monthly/i.test(detail.extraLabel) ? "Monthly" : "Extra";
   if (extraDepleted) {
-    return `${prefix} 100% · 已耗尽`;
+    return `${prefix} 100% · Exhausted`;
   }
   const parsed = splitQuotaValue(detail.extraValue ?? "");
   const pctPart =
     typeof detail.extraUsedPercent === "number"
       ? `${detail.extraUsedPercent}%`
-      : parsed.main.replace(/^已使用\s*/, "").trim();
+      : parsed.main.replace(/^(?:已使用|Used)\s*/i, "").trim();
   const notePart = parsed.note
     ? parsed.note
-        .replace(/^剩余\s*/, "余 ")
+        .replace(/^剩余\s*/, "Left ")
         .replace(/个?口令$/, "")
         .replace(/\s*tokens?$/i, "")
         .trim()
@@ -798,7 +816,7 @@ function formatShortExtraText(
   if (pctPart) {
     return `${prefix} ${pctPart}`;
   }
-  return detail.extraLabel ?? "额外额度";
+  return detail.extraLabel ?? "Extra quota";
 }
 
 type CookieExpiryTone = "normal" | "warn" | "critical" | "expired" | "session";
@@ -825,9 +843,9 @@ function formatCookieExpiry(acc: AccountRecord): CookieExpiryDisplay | null {
     if (diffMs <= 0) {
       return {
         tone: "expired",
-        shortText: "Cookie 已过期",
-        detailText: `Cookie 已于 ${absStr} 过期（需重新登录或刷新）`,
-        tooltip: `Cookie 过期时间：${absStr}`,
+        shortText: "Cookie expired",
+        detailText: `Cookie expired at ${absStr} (sign in again or refresh)`,
+        tooltip: `Cookie expiration: ${absStr}`,
       };
     }
 
@@ -837,21 +855,21 @@ function formatCookieExpiry(acc: AccountRecord): CookieExpiryDisplay | null {
 
     const shortText =
       days >= 365
-        ? `Cookie 约 ${(days / 365).toFixed(1).replace(/\.0$/, "")} 年`
+        ? `Cookie ~${(days / 365).toFixed(1).replace(/\.0$/, "")}y`
         : days >= 1
-          ? `Cookie 剩 ${days} 天`
+          ? `Cookie ${days}d left`
           : hours >= 1
-            ? `Cookie 剩 ${hours} 小时`
-            : `Cookie 剩 ${mins} 分钟`;
+            ? `Cookie ${hours}h left`
+            : `Cookie ${mins}m left`;
 
     const fullRem =
       days >= 1 && hours > 0
-        ? `${days} 天 ${hours} 小时`
+        ? `${days}d ${hours}h`
         : days >= 1
-          ? `${days} 天`
+          ? `${days}d`
           : hours >= 1
-            ? `${hours} 小时 ${mins} 分钟`
-            : `${mins} 分钟`;
+            ? `${hours}h ${mins}m`
+            : `${mins}m`;
 
     const tone: CookieExpiryTone =
       diffMs <= 24 * 3_600_000
@@ -863,17 +881,17 @@ function formatCookieExpiry(acc: AccountRecord): CookieExpiryDisplay | null {
     return {
       tone,
       shortText,
-      detailText: `Cookie 有效期至 ${absStr}（剩余 ${fullRem}）`,
-      tooltip: `Cookie 有效期至 ${absStr}`,
+      detailText: `Cookie valid until ${absStr} (${fullRem} left)`,
+      tooltip: `Cookie valid until ${absStr}`,
     };
   }
 
   if (acc.cookieSessionOnly) {
     return {
       tone: "session",
-      shortText: "仅本次会话有效",
-      detailText: "会话级 Cookie（关闭应用后可能需重新登录）",
-      tooltip: "浏览器会话级 Cookie，未设置固定过期时间",
+      shortText: "Session only",
+      detailText: "Session-only Cookie (may require signing in again after closing)",
+      tooltip: "Browser session Cookie with no fixed expiration time",
     };
   }
 
@@ -956,6 +974,10 @@ function saveScrollPosition(): void {
   if (modalCardEl) {
     modalCardScrollTop = modalCardEl.scrollTop;
   }
+  const featureStageEl = document.querySelector<HTMLElement>(".sr-stage");
+  if (featureStageEl) {
+    lastFeatureStageScroll = featureStageEl.scrollTop;
+  }
 }
 
 function restoreScrollPosition(): void {
@@ -977,6 +999,10 @@ function restoreScrollPosition(): void {
     } else {
       msgEl.scrollTop = msgEl.scrollHeight;
     }
+  }
+  const featureStageEl = document.querySelector<HTMLElement>(".sr-stage");
+  if (featureStageEl) {
+    featureStageEl.scrollTop = lastFeatureStageScroll;
   }
   if (modal.kind !== "none") {
     const modalOverlayEl = document.querySelector<HTMLElement>(".inline-modal");
@@ -1013,10 +1039,10 @@ function formatBytes(bytes: number): string {
 }
 
 function formatProgressSummary(evt: UpdateProgressEvent): string {
-  if (evt.stage === "verifying") return "校验中";
-  if (evt.stage === "installing") return "正在替换";
-  if (evt.stage === "ready") return "完成";
-  if (evt.stage === "needs_permission") return "待授权";
+  if (evt.stage === "verifying") return "Verifying";
+  if (evt.stage === "installing") return "Installing";
+  if (evt.stage === "ready") return "Ready";
+  if (evt.stage === "needs_permission") return "Permission needed";
   const pct = typeof evt.percent === "number" ? `${evt.percent}%` : "";
   const transferred = evt.total
     ? `${formatBytes(evt.downloaded)} / ${formatBytes(evt.total)}`
@@ -1085,7 +1111,7 @@ async function runDownloadAndInstall(): Promise<void> {
     downloaded: 0,
     total: res.size,
     percent: 0,
-    message: "正在准备下载...",
+    message: "Preparing download...",
   };
   rerenderPreservingScroll();
   try {
@@ -1212,22 +1238,22 @@ function renderUpdateModal(): string {
   const curVer = res ? res.currentVersion : "...";
   const hasUpdate = Boolean(res?.hasUpdate);
   const title = hasUpdate
-    ? `发现新版本 v${escapeHtml(res!.latestVersion)}`
-    : "检查更新";
+    ? `New Version v${escapeHtml(res!.latestVersion)}`
+    : "Check for Updates";
 
   const versionRow = res
     ? `
       <div class="update-version-row">
-        <span class="update-version-pill">当前 v${escapeHtml(curVer)}</span>
+        <span class="update-version-pill">Current v${escapeHtml(curVer)}</span>
         ${
           hasUpdate
-            ? `<span>→</span><span class="update-version-pill latest">最新 v${escapeHtml(res.latestVersion)}</span>`
+            ? `<span>→</span><span class="update-version-pill latest">Latest v${escapeHtml(res.latestVersion)}</span>`
             : ""
         }
         ${res.size ? `<span class="update-size-label">${escapeHtml(formatBytes(res.size))}</span>` : ""}
       </div>
     `
-    : `<div class="modal-desc">正在连接 GitHub Releases 检查版本信息...</div>`;
+    : `<div class="modal-desc">Connecting to GitHub Releases to check for updates...</div>`;
 
   let bodyHtml = "";
   if (updateState.checking && !res) {
@@ -1239,12 +1265,12 @@ function renderUpdateModal(): string {
   } else if (res) {
     const noteText = res.releaseNotes.trim();
     if (hasUpdate) {
-      bodyHtml += `<div class="update-notes">${escapeHtml(noteText || "包含稳定性改进与问题修复。")}</div>`;
+      bodyHtml += `<div class="update-notes">${escapeHtml(noteText || "Includes stability improvements and bug fixes.")}</div>`;
       if (!res.downloadUrl) {
-        bodyHtml += `<div class="modal-desc">当前发布尚未包含本平台自动安装包，请点击「发布页」手动下载。</div>`;
+        bodyHtml += `<div class="modal-desc">This release does not include an automatic installer for your platform. Click "Release Page" to download manually.</div>`;
       }
     } else {
-      bodyHtml += `<div class="modal-desc">${escapeHtml(noteText || "当前已是最新版本。")}</div>`;
+      bodyHtml += `<div class="modal-desc">${escapeHtml(noteText || "You are already on the latest version.")}</div>`;
     }
   }
 
@@ -1287,19 +1313,19 @@ function renderUpdateModal(): string {
   const primaryBtn = canInstall
     ? `<button id="update-install-btn" class="btn primary" type="button" ${disablePrimary ? "disabled" : ""}>${
         updateState.installing
-          ? "更新中..."
+          ? "Updating..."
           : updateState.outcomeStatus === "needs_permission"
-            ? "已授权，继续安装"
+            ? "Authorized, Continue Install"
             : snapshot?.platform === "ios"
-              ? "前往下载 IPA"
-              : "立即下载并更新"
+              ? "Download IPA"
+              : "Download & Update"
       }</button>`
     : `<button id="update-recheck-btn" class="btn primary" type="button" ${disablePrimary ? "disabled" : ""}>${
-        updateState.checking ? "检查中..." : "重新检查"
+        updateState.checking ? "Checking..." : "Check Again"
       }</button>`;
 
   const pageBtn = res?.releasePageUrl
-    ? `<button id="update-open-page-btn" class="btn" type="button">发布页</button>`
+    ? `<button id="update-open-page-btn" class="btn" type="button">Release Page</button>`
     : "";
 
   return `
@@ -1309,7 +1335,7 @@ function renderUpdateModal(): string {
         ${versionRow}
         ${bodyHtml}
         <div class="modal-footer">
-          <button id="modal-cancel-btn" class="btn" type="button" ${updateState.installing ? "disabled" : ""}>关闭</button>
+          <button id="modal-cancel-btn" class="btn" type="button" ${updateState.installing ? "disabled" : ""}>Close</button>
           ${pageBtn}
           ${primaryBtn}
         </div>
@@ -1329,12 +1355,12 @@ function formatGroupPickerHint(
   hasPickerContent: boolean
 ): string {
   if (eligibleCount === 0 && !hasPickerContent) {
-    return "暂无可用成员，请先登录网页账号或添加 API / CLI 成员。";
+    return "No members available. Please sign in to a web account or add an API / CLI member first.";
   }
   if (ineligibleCount > 0) {
-    return `已自动过滤 ${ineligibleCount} 个未登录或登录失效网页账号（已选 ${selectedCount}/30）。`;
+    return `Filtered out ${ineligibleCount} signed-out or expired web account(s) (selected ${selectedCount}/30).`;
   }
-  return `支持网页账号与 API / CLI 混合协同（已选 ${selectedCount}/30）。`;
+  return `Supports mixed web account and API / CLI collaboration (selected ${selectedCount}/30).`;
 }
 
 function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
@@ -1359,25 +1385,25 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
       modal.tab === "lan"
         ? `
           <div class="sync-section">
-            <div class="sync-section-title">作为发送端（生成临时加密共享）</div>
+            <div class="sync-section-title">As Sender (Create Temporary Encrypted Share)</div>
             <label class="sync-relay-toggle">
               <input id="sync-relay-toggle" type="checkbox" ${modal.relayEnabled ? "checked" : ""} ${busyAny ? "disabled" : ""} />
-              <span>启用官网 / Cloudflare 加密中转通道（默认关闭，跨网或开代理时可选）</span>
+              <span>Enable official / Cloudflare encrypted relay channel (off by default; optional across networks or proxies)</span>
             </label>
             ${
               modal.relayEnabled
                 ? `
-              <div class="sync-privacy-note">不收集任何用户数据：每次同步均在本地随机生成一次性 256-bit 密钥进行 AES-256-GCM 端到端加密，密钥仅包含在二维码/同步串中，绝不上传服务端；服务端仅临时暂存纯密文，无法解密，3 分钟或拉取完成后立即销毁。</div>
+              <div class="sync-privacy-note">No user data collected: each sync generates a one-time local 256-bit key for AES-256-GCM end-to-end encryption. The key lives only in the QR code/sync URI and is never uploaded; the relay stores ciphertext only and deletes it after 3 minutes or retrieval.</div>
               <div class="sync-inline-row">
-                <input id="sync-relay-url" class="modal-input" maxlength="260" placeholder="官网或自建 Cloudflare Worker 地址（https://...）" value="${escapeHtml(modal.relayUrlDraft)}" autocomplete="off" spellcheck="false" ${busyAny ? "disabled" : ""} />
-                <button id="sync-lan-start-btn" class="btn primary" type="button" ${busyAny ? "disabled" : ""}>${modal.lanShareBusy ? "上传密文中..." : isRelayActive ? "重新生成" : "生成随机加密中转码"}</button>
+                <input id="sync-relay-url" class="modal-input" maxlength="260" placeholder="Official or self-hosted Cloudflare Worker URL (https://...)" value="${escapeHtml(modal.relayUrlDraft)}" autocomplete="off" spellcheck="false" ${busyAny ? "disabled" : ""} />
+                <button id="sync-lan-start-btn" class="btn primary" type="button" ${busyAny ? "disabled" : ""}>${modal.lanShareBusy ? "Uploading..." : isRelayActive ? "Regenerate" : "Generate Encrypted Relay Code"}</button>
               </div>
             `
                 : `
-              <div class="modal-hint">默认仅通过本地局域网点对点直连（3 分钟或最多 3 次拉取后自动关闭）。</div>
+              <div class="modal-hint">Direct peer-to-peer over local LAN by default (auto-closes after 3 minutes or up to 3 pulls).</div>
               <div class="sync-inline-row">
-                <input id="sync-lan-share-pass" class="modal-input" maxlength="64" placeholder="同步口令（留空自动生成 6 位数字 PIN）" value="${escapeHtml(modal.lanSharePassDraft)}" autocomplete="off" spellcheck="false" ${busyAny ? "disabled" : ""} />
-                <button id="sync-lan-start-btn" class="btn primary" type="button" ${busyAny ? "disabled" : ""}>${modal.lanShareBusy ? "开启中..." : shareInfo && !isRelayActive ? "重新开启" : "开启共享"}</button>
+                <input id="sync-lan-share-pass" class="modal-input" maxlength="64" placeholder="Sync passcode (leave blank for auto 6-digit PIN)" value="${escapeHtml(modal.lanSharePassDraft)}" autocomplete="off" spellcheck="false" ${busyAny ? "disabled" : ""} />
+                <button id="sync-lan-start-btn" class="btn primary" type="button" ${busyAny ? "disabled" : ""}>${modal.lanShareBusy ? "Starting..." : shareInfo && !isRelayActive ? "Restart Share" : "Start Sharing"}</button>
               </div>
             `
             }
@@ -1387,18 +1413,18 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
               <div class="sync-qr-wrap">
                 <div class="sync-qr-box">${shareInfo.qrSvg}</div>
                 <div class="sync-meta-grid">
-                  <span class="sync-meta-label">${isRelayActive ? "中转通道" : "局域网地址"}</span>
+                  <span class="sync-meta-label">${isRelayActive ? "Relay Channel" : "LAN Address"}</span>
                   <span class="sync-meta-val">${escapeHtml(shareInfo.address)}</span>
-                  <span class="sync-meta-label">${isRelayActive ? "端到端加密" : "同步口令"}</span>
+                  <span class="sync-meta-label">${isRelayActive ? "E2E Encryption" : "Passcode"}</span>
                   <span class="sync-meta-val">${escapeHtml(shareInfo.passphrase)}</span>
-                  <span class="sync-meta-label">打包内容</span>
-                  <span>${shareInfo.accountCount} 个账号（含 ${shareInfo.cookieAccountCount} 个登录态）</span>
-                  <span class="sync-meta-label">${isRelayActive ? "销毁策略" : "有效期"}</span>
-                  <span>约 3 分钟 / 最多 ${shareInfo.maxDownloads} 次拉取${isRelayActive ? "后自动销毁" : ""}</span>
+                  <span class="sync-meta-label">Bundle Contents</span>
+                  <span>${shareInfo.accountCount} accounts (${shareInfo.cookieAccountCount} with cookies)</span>
+                  <span class="sync-meta-label">${isRelayActive ? "Deletion Policy" : "Validity"}</span>
+                  <span>~3 minutes / up to ${shareInfo.maxDownloads} pulls${isRelayActive ? " before auto-delete" : ""}</span>
                 </div>
                 <div class="sync-ops-row">
-                  <button id="sync-lan-copy-uri-btn" class="mini-btn" type="button">复制同步串</button>
-                  <button id="sync-lan-stop-btn" class="mini-btn danger-btn" type="button">${isRelayActive ? "立即销毁并停止" : "停止共享"}</button>
+                  <button id="sync-lan-copy-uri-btn" class="mini-btn" type="button">Copy Sync URI</button>
+                  <button id="sync-lan-stop-btn" class="mini-btn danger-btn" type="button">${isRelayActive ? "Destroy & Stop" : "Stop Sharing"}</button>
                 </div>
               </div>
             `
@@ -1406,69 +1432,69 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
             }
           </div>
           <div class="sync-section">
-            <div class="sync-section-title">作为接收端（扫码或输入同步串拉取）</div>
+            <div class="sync-section-title">As Receiver (Scan QR or Paste Sync URI)</div>
             ${
               isMobilePlatform(state.platform)
-                ? `<button id="sync-lan-scan-btn" class="btn primary sync-scan-btn" type="button" ${busyAny ? "disabled" : ""}>${ICON_QR_SCAN}<span>${modal.lanScanBusy ? "正在识别并同步..." : "扫码直接同步"}</span></button>`
+                ? `<button id="sync-lan-scan-btn" class="btn primary sync-scan-btn" type="button" ${busyAny ? "disabled" : ""}>${ICON_QR_SCAN}<span>${modal.lanScanBusy ? "Scanning & syncing..." : "Scan QR to Sync"}</span></button>`
                 : ""
             }
-            <input id="sync-lan-pull-addr" class="modal-input" maxlength="512" placeholder="输入局域网地址或粘贴 maam-sync:// 同步串（支持局域网与中转码）" value="${escapeHtml(modal.lanPullAddrDraft)}" autocomplete="off" spellcheck="false" ${busyAny ? "disabled" : ""} />
+            <input id="sync-lan-pull-addr" class="modal-input" maxlength="512" placeholder="Enter LAN address or paste maam-sync:// sync URI (LAN & relay supported)" value="${escapeHtml(modal.lanPullAddrDraft)}" autocomplete="off" spellcheck="false" ${busyAny ? "disabled" : ""} />
             <div class="sync-inline-row">
-              <input id="sync-lan-pull-pass" class="modal-input" maxlength="128" placeholder="口令或二维码自动填入的端到端密钥片段" value="${escapeHtml(modal.lanPullPassDraft)}" autocomplete="off" spellcheck="false" ${busyAny ? "disabled" : ""} />
-              <button id="sync-lan-pull-btn" class="btn primary" type="button" ${busyAny ? "disabled" : ""}>${modal.lanPullBusy ? "拉取中..." : "拉取并合并"}</button>
+              <input id="sync-lan-pull-pass" class="modal-input" maxlength="128" placeholder="Passcode or E2E key fragment from QR code" value="${escapeHtml(modal.lanPullPassDraft)}" autocomplete="off" spellcheck="false" ${busyAny ? "disabled" : ""} />
+              <button id="sync-lan-pull-btn" class="btn primary" type="button" ${busyAny ? "disabled" : ""}>${modal.lanPullBusy ? "Pulling..." : "Pull & Merge"}</button>
             </div>
           </div>
         `
         : `
           <div class="sync-section">
-            <div class="sync-section-title">导出加密备份（.maam）</div>
-            <div class="modal-hint">AES-256-GCM 端到端加密包含所有账号、代理、时区、群聊与 Cookie 登录态。</div>
+            <div class="sync-section-title">Export Encrypted Backup (.maam)</div>
+            <div class="modal-hint">AES-256-GCM end-to-end encryption covering all accounts, proxies, time zones, group chats, and Cookie sessions.</div>
             <div class="sync-inline-row">
-              <input id="sync-file-export-pass" class="modal-input" type="password" maxlength="128" placeholder="设置加密口令（至少 4 位）" value="${escapeHtml(modal.fileExportPassDraft)}" autocomplete="off" ${busyAny ? "disabled" : ""} />
-              <button id="sync-file-export-btn" class="btn primary" type="button" ${busyAny ? "disabled" : ""}>${modal.fileExportBusy ? "导出中..." : "导出备份"}</button>
+              <input id="sync-file-export-pass" class="modal-input" type="password" maxlength="128" placeholder="Set encryption passphrase (min 4 characters)" value="${escapeHtml(modal.fileExportPassDraft)}" autocomplete="off" ${busyAny ? "disabled" : ""} />
+              <button id="sync-file-export-btn" class="btn primary" type="button" ${busyAny ? "disabled" : ""}>${modal.fileExportBusy ? "Exporting..." : "Export Backup"}</button>
             </div>
             ${
               exportRes
                 ? `
-              <div class="modal-hint">已加密 ${exportRes.accountCount} 个账号（${exportRes.cookieAccountCount} 个含 Cookie）。${exportRes.savedPath ? `<br/>已保存：<code>${escapeHtml(exportRes.savedPath)}</code>` : ""}</div>
+              <div class="modal-hint">Encrypted ${exportRes.accountCount} accounts (${exportRes.cookieAccountCount} with cookies).${exportRes.savedPath ? `<br/>Saved: <code>${escapeHtml(exportRes.savedPath)}</code>` : ""}</div>
               <div class="sync-ops-row">
-                ${exportRes.downloadId != null ? `<button id="sync-file-reveal-btn" class="mini-btn" type="button">打开文件位置</button>` : ""}
-                <button id="sync-file-download-btn" class="mini-btn" type="button">保存 .maam 文件</button>
-                <button id="sync-file-copy-btn" class="mini-btn" type="button">复制密文</button>
+                ${exportRes.downloadId != null ? `<button id="sync-file-reveal-btn" class="mini-btn" type="button">Show File Location</button>` : ""}
+                <button id="sync-file-download-btn" class="mini-btn" type="button">Save .maam File</button>
+                <button id="sync-file-copy-btn" class="mini-btn" type="button">Copy Ciphertext</button>
               </div>
             `
                 : ""
             }
           </div>
           <div class="sync-section">
-            <div class="sync-section-title">导入并解密备份</div>
+            <div class="sync-section-title">Import & Decrypt Backup</div>
             <input id="sync-file-picker" class="sync-file-input" type="file" accept=".maam,.json,application/json,text/plain" ${busyAny ? "disabled" : ""} />
-            ${modal.fileImportFileName ? `<div class="modal-hint">已读取文件：${escapeHtml(modal.fileImportFileName)}</div>` : ""}
-            <textarea id="sync-file-import-json" class="modal-textarea compact-cookie-textarea" rows="3" placeholder="或直接在此粘贴 .maam 加密备份全文" spellcheck="false" ${busyAny ? "disabled" : ""}>${escapeHtml(modal.fileImportJsonDraft)}</textarea>
+            ${modal.fileImportFileName ? `<div class="modal-hint">Loaded file: ${escapeHtml(modal.fileImportFileName)}</div>` : ""}
+            <textarea id="sync-file-import-json" class="modal-textarea compact-cookie-textarea" rows="3" placeholder="Or paste the full encrypted .maam backup content here" spellcheck="false" ${busyAny ? "disabled" : ""}>${escapeHtml(modal.fileImportJsonDraft)}</textarea>
             <div class="sync-inline-row">
-              <input id="sync-file-import-pass" class="modal-input" type="password" maxlength="128" placeholder="输入备份时的解密口令" value="${escapeHtml(modal.fileImportPassDraft)}" autocomplete="off" ${busyAny ? "disabled" : ""} />
-              <button id="sync-file-import-btn" class="btn primary" type="button" ${busyAny ? "disabled" : ""}>${modal.fileImportBusy ? "导入中..." : "解密并导入"}</button>
+              <input id="sync-file-import-pass" class="modal-input" type="password" maxlength="128" placeholder="Enter backup decryption passphrase" value="${escapeHtml(modal.fileImportPassDraft)}" autocomplete="off" ${busyAny ? "disabled" : ""} />
+              <button id="sync-file-import-btn" class="btn primary" type="button" ${busyAny ? "disabled" : ""}>${modal.fileImportBusy ? "Importing..." : "Decrypt & Import"}</button>
             </div>
           </div>
         `;
     return `
       <div class="${modalOverlayClass()}" role="dialog" aria-modal="true">
         <div class="modal-card sync-modal-card">
-          <div class="modal-title">多端加密同步</div>
+          <div class="modal-title">Multi-Device Encrypted Sync</div>
           <div class="sync-tabs">
-            <button id="sync-tab-lan" class="sync-tab-btn ${modal.tab === "lan" ? "active" : ""}" type="button" ${busyAny ? "disabled" : ""}>扫码 / 局域网</button>
-            <button id="sync-tab-file" class="sync-tab-btn ${modal.tab === "file" ? "active" : ""}" type="button" ${busyAny ? "disabled" : ""}>加密备份文件</button>
+            <button id="sync-tab-lan" class="sync-tab-btn ${modal.tab === "lan" ? "active" : ""}" type="button" ${busyAny ? "disabled" : ""}>QR / LAN</button>
+            <button id="sync-tab-file" class="sync-tab-btn ${modal.tab === "file" ? "active" : ""}" type="button" ${busyAny ? "disabled" : ""}>Encrypted Backup File</button>
           </div>
           ${tabBody}
           ${
             summary
-              ? `<div class="sync-summary-box">同步成功：新增 ${summary.addedAccounts} 个账号，更新 ${summary.updatedAccounts} 个账号，写入 ${summary.importedCookieAccounts} 个登录态${summary.mergedGroups > 0 ? `，合并 ${summary.mergedGroups} 个群聊` : ""}${summary.skippedCookieAccounts > 0 ? `（${summary.skippedCookieAccounts} 个 Cookie 写入跳过）` : ""}</div>`
+              ? `<div class="sync-summary-box">Sync succeeded: added ${summary.addedAccounts} accounts, updated ${summary.updatedAccounts} accounts, imported ${summary.importedCookieAccounts} login sessions${summary.mergedGroups > 0 ? `, merged ${summary.mergedGroups} group chats` : ""}${summary.skippedCookieAccounts > 0 ? ` (${summary.skippedCookieAccounts} cookies skipped)` : ""}</div>`
               : ""
           }
           ${modal.copyHint ? `<div class="modal-hint">${escapeHtml(modal.copyHint)}</div>` : ""}
           ${modal.error ? `<div id="modal-error-box" class="update-error-box" role="alert">${escapeHtml(modal.error)}</div>` : ""}
           <div class="modal-footer">
-            <button id="modal-cancel-btn" class="btn" type="button" ${busyAny ? "disabled" : ""}>关闭</button>
+            <button id="modal-cancel-btn" class="btn" type="button" ${busyAny ? "disabled" : ""}>Close</button>
           </div>
         </div>
       </div>
@@ -1477,45 +1503,45 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
   if (modal.kind === "settings") {
     const saving = Boolean(modal.saving);
     const shortcutPresets = [
-      { label: "默认", val: "CommandOrControl+Shift+M" },
+      { label: "Default", val: "CommandOrControl+Shift+M" },
       { label: "Alt+Space", val: "Alt+Space" },
       { label: "Cmd/Ctrl+Alt+A", val: "CommandOrControl+Alt+A" },
-      { label: "禁用", val: "" },
+      { label: "Disable", val: "" },
     ];
     const statusText = state.globalShortcutActive
-      ? "快捷键已生效"
+      ? "Shortcut active"
       : state.globalShortcutError
         ? state.globalShortcutError
         : state.settings.globalShortcut
-          ? "未激活"
-          : "已禁用";
+          ? "Inactive"
+          : "Disabled";
     const intervalPresets = [
-      { label: "5 分钟", val: 5 },
-      { label: "15 分钟", val: 15 },
-      { label: "30 分钟", val: 30 },
-      { label: "仅手动", val: 0 },
+      { label: "5 min", val: 5 },
+      { label: "15 min", val: 15 },
+      { label: "30 min", val: 30 },
+      { label: "Manual only", val: 0 },
     ];
     return `
       <div class="${modalOverlayClass()}" role="dialog" aria-modal="true">
         <div class="modal-card">
-          <div class="modal-title">桌面端设置</div>
+          <div class="modal-title">Desktop Settings</div>
           <label class="setting-row" for="modal-tray-checkbox">
-            <span class="setting-label">关闭主窗口时最小化到系统托盘</span>
+            <span class="setting-label">Minimize to system tray when closing main window</span>
             <input id="modal-tray-checkbox" class="setting-checkbox" type="checkbox" ${modal.minimizeToTray ? "checked" : ""} ${saving ? "disabled" : ""} />
           </label>
           <label class="setting-row" for="modal-auto-approve-checkbox">
-            <span class="setting-label">自动审批权限请求（前台与后台保活账号）</span>
+            <span class="setting-label">Auto-approve permission prompts (active & background warm accounts)</span>
             <input id="modal-auto-approve-checkbox" class="setting-checkbox" type="checkbox" ${modal.autoApprove ? "checked" : ""} ${saving ? "disabled" : ""} />
           </label>
-          <div class="modal-hint">开启后，已预热保活的工具授权弹窗将自动点击允许，并跳过删除/退出/支付等高危操作。</div>
+          <div class="modal-hint">Automatically clicks Allow on tool authorization dialogs for warmed accounts while skipping high-risk actions like delete, sign out, or payment.</div>
           <label class="setting-row" for="modal-isolate-proxy-checkbox">
-            <span class="setting-label">同代理仅保活当前账号（防多号同 IP 限流）</span>
+            <span class="setting-label">Keep only active account warm per shared proxy (anti-rate-limit)</span>
             <input id="modal-isolate-proxy-checkbox" class="setting-checkbox" type="checkbox" ${modal.isolateSameProxyKeepAlive ? "checked" : ""} ${saving ? "disabled" : ""} />
           </label>
-          <div class="modal-hint">开启后，未配独立代理或共用同一代理的同平台账号仅保持当前活跃窗口，切号自动释放旧窗口；关闭则恢复全部后台预热保活。</div>
+          <div class="modal-hint">When enabled, same-platform accounts sharing a proxy or system network keep only the active view warm and release old views on switch.</div>
           <div class="setting-field">
             <div class="setting-field-head">
-              <label class="modal-desc" for="modal-sync-interval-input">后台静默保活 / 额度检测间隔（分钟）</label>
+              <label class="modal-desc" for="modal-sync-interval-input">Background keep-alive / quota check interval (minutes)</label>
             </div>
             <input id="modal-sync-interval-input" class="modal-input" type="number" min="0" max="120" step="1" value="${escapeHtml(String(modal.silentSyncIntervalMins))}" ${saving ? "disabled" : ""} />
             <div class="preset-chips">
@@ -1526,14 +1552,14 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
                 )
                 .join("")}
             </div>
-            <div class="modal-hint">窗口切回与定时检查均受此间隔限制；设为 0 则仅手动刷新。</div>
+            <div class="modal-hint">Applies to window focus and scheduled checks; set to 0 for manual refresh only.</div>
           </div>
           <div class="setting-field">
             <div class="setting-field-head">
-              <label class="modal-desc" for="modal-shortcut-input">全局呼出 / 隐藏快捷键</label>
-              <span class="shortcut-status-pill ${state.globalShortcutActive ? "ok" : state.globalShortcutError ? "err" : ""}" title="${escapeHtml(statusText)}">${escapeHtml(state.globalShortcutActive ? "已生效" : state.globalShortcutError ? "注册失败" : "未启用")}</span>
+              <label class="modal-desc" for="modal-shortcut-input">Global show / hide shortcut</label>
+              <span class="shortcut-status-pill ${state.globalShortcutActive ? "ok" : state.globalShortcutError ? "err" : ""}" title="${escapeHtml(statusText)}">${escapeHtml(state.globalShortcutActive ? "Active" : state.globalShortcutError ? "Failed" : "Not set")}</span>
             </div>
-            <input id="modal-shortcut-input" class="modal-input" maxlength="80" placeholder="CommandOrControl+Shift+M（留空禁用）" value="${escapeHtml(modal.globalShortcut)}" autocomplete="off" spellcheck="false" ${saving ? "disabled" : ""} />
+            <input id="modal-shortcut-input" class="modal-input" maxlength="80" placeholder="CommandOrControl+Shift+M (leave blank to disable)" value="${escapeHtml(modal.globalShortcut)}" autocomplete="off" spellcheck="false" ${saving ? "disabled" : ""} />
             <div class="preset-chips">
               ${shortcutPresets
                 .map(
@@ -1542,12 +1568,12 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
                 )
                 .join("")}
             </div>
-            ${state.globalShortcutError && !modal.error ? `<div class="modal-hint error-hint">${escapeHtml(state.globalShortcutError)}</div>` : `<div class="modal-hint">在任意应用中按下快捷键即可显示或隐藏主窗口；托盘菜单可完全退出。</div>`}
+            ${state.globalShortcutError && !modal.error ? `<div class="modal-hint error-hint">${escapeHtml(state.globalShortcutError)}</div>` : `<div class="modal-hint">Press this shortcut in any app to toggle the main window; use the tray menu to quit completely.</div>`}
           </div>
           ${modal.error ? `<div id="modal-error-box" class="update-error-box" role="alert">${escapeHtml(modal.error)}</div>` : ""}
           <div class="modal-footer">
-            <button id="modal-cancel-btn" class="btn" type="button" ${saving ? "disabled" : ""}>取消</button>
-            <button id="modal-confirm-btn" class="btn primary" type="button" ${saving ? "disabled" : ""}>${saving ? "保存中..." : "保存"}</button>
+            <button id="modal-cancel-btn" class="btn" type="button" ${saving ? "disabled" : ""}>Cancel</button>
+            <button id="modal-confirm-btn" class="btn primary" type="button" ${saving ? "disabled" : ""}>${saving ? "Saving..." : "Save"}</button>
           </div>
         </div>
       </div>
@@ -1559,11 +1585,11 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
     const proxyTesting = Boolean(modal.proxyTesting);
     const supportsProxy = supportsAccountProxy(platform);
     const title = creating
-      ? `新增 ${escapeHtml(provider.shortName)} 账号`
-      : "账号设置";
+      ? `Add ${escapeHtml(provider.shortName)} Account`
+      : "Account Settings";
     const aliasPlaceholder = creating
-      ? "备注名称（留空则自动获取登录邮箱）"
-      : "备注名称（留空保留原备注）";
+      ? "Display name (leave blank to auto-detect login email)"
+      : "Display name (leave blank to keep current name)";
     const testRes = modal.proxyTestResult;
     const renameAcc = modal.kind === "rename" ? modal.account : null;
     const currentAcc = renameAcc
@@ -1576,43 +1602,43 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
       <div class="${modalOverlayClass()}" role="dialog" aria-modal="true">
         <div class="modal-card">
           <div class="modal-title">${title}</div>
-          <input id="modal-alias-input" class="modal-input" maxlength="60" placeholder="${aliasPlaceholder}" aria-label="备注名称" value="${escapeHtml(modal.draft)}" ${saving ? "disabled" : ""} />
+          <input id="modal-alias-input" class="modal-input" maxlength="60" placeholder="${aliasPlaceholder}" aria-label="Display name" value="${escapeHtml(modal.draft)}" ${saving ? "disabled" : ""} />
           ${supportsProxy ? `
-            <label class="modal-desc" for="modal-proxy-input">HTTP CONNECT 代理（留空使用系统网络）</label>
+            <label class="modal-desc" for="modal-proxy-input">HTTP CONNECT Proxy (leave blank to use system network)</label>
             <div class="proxy-input-row">
               <input id="modal-proxy-input" class="modal-input" maxlength="512" placeholder="http://127.0.0.1:7890" value="${escapeHtml(modal.proxyDraft)}" autocomplete="off" spellcheck="false" ${saving ? "disabled" : ""} />
-              ${!isMobilePlatform(platform) ? `<button id="proxy-test-btn" class="btn mini-test-btn" type="button" ${saving || proxyTesting ? "disabled" : ""}>${proxyTesting ? "测速中..." : "测试连接"}</button>` : ""}
+              ${!isMobilePlatform(platform) ? `<button id="proxy-test-btn" class="btn mini-test-btn" type="button" ${saving || proxyTesting ? "disabled" : ""}>${proxyTesting ? "Testing..." : "Test Connection"}</button>` : ""}
             </div>
             ${testRes ? `<div id="proxy-test-result" class="proxy-test-box ${testRes.ok ? "ok" : "err"}">${escapeHtml(testRes.message)}</div>` : ""}
-            <div class="modal-hint">仅作用于内嵌页面；外部浏览器登录与更新检查不走此代理。</div>
+            <div class="modal-hint">Applies only to embedded views; external browser sign-in and update checks bypass this proxy.</div>
           ` : ""}
-          <label class="modal-desc" for="modal-timezone-input">自定义时区（留空跟随系统）</label>
-          <input id="modal-timezone-input" class="modal-input" maxlength="64" placeholder="IANA 时区（例如 America/New_York、Asia/Tokyo）" value="${escapeHtml(modal.timezoneDraft)}" autocomplete="off" spellcheck="false" ${saving ? "disabled" : ""} />
+          <label class="modal-desc" for="modal-timezone-input">Custom Time Zone (leave blank for system default)</label>
+          <input id="modal-timezone-input" class="modal-input" maxlength="64" placeholder="IANA time zone (e.g. America/New_York, Asia/Tokyo)" value="${escapeHtml(modal.timezoneDraft)}" autocomplete="off" spellcheck="false" ${saving ? "disabled" : ""} />
           <div class="preset-chips">
             ${TIMEZONE_PRESETS.map(
               (p) =>
                 `<button class="preset-chip" data-timezone-preset="${escapeHtml(p.value)}" type="button" ${saving ? "disabled" : ""}>${escapeHtml(p.label)}</button>`
             ).join("")}
           </div>
-          <div class="modal-hint">${platform === "windows" ? "通过 WebView2 原生接口按账号独立生效，留空则使用系统时区。" : "文档加载前注入该账号独立页面，支持夏令时，留空则使用系统时区。"}</div>
+          <div class="modal-hint">${platform === "windows" ? "Applied per account via native WebView2 API; leave blank for system time zone." : "Injected before document load with DST support; leave blank for system time zone."}</div>
           ${cookieInfo ? `<div class="cookie-detail-box ${cookieInfo.tone}" title="${escapeHtml(cookieInfo.tooltip)}"><span class="cookie-expiry-dot"></span><span>${escapeHtml(cookieInfo.detailText)}</span></div>` : ""}
           <div class="cookie-import-section">
-            <label class="modal-desc" for="modal-cookie-import-input">${creating ? "导入 Cookie（可选，支持从 Chrome 等浏览器登录后粘贴）" : "导入 Cookie（支持从 Chrome 等浏览器登录后粘贴）"}</label>
-            <textarea id="modal-cookie-import-input" class="modal-textarea compact-cookie-textarea" rows="3" placeholder="粘贴 Cookie 请求头（a=1; b=2）、Netscape cookies.txt 或浏览器导出的 JSON 数组..." ${saving ? "disabled" : ""}>${escapeHtml(modal.cookieDraft ?? "")}</textarea>
+            <label class="modal-desc" for="modal-cookie-import-input">${creating ? "Import Cookies (optional, paste after signing in via Chrome)" : "Import Cookies (paste after signing in via Chrome)"}</label>
+            <textarea id="modal-cookie-import-input" class="modal-textarea compact-cookie-textarea" rows="3" placeholder="Paste Cookie header (a=1; b=2), Netscape cookies.txt, or browser JSON export array..." ${saving ? "disabled" : ""}>${escapeHtml(modal.cookieDraft ?? "")}</textarea>
             ${creating ? `
-              <div class="modal-hint">留空则创建后手动登录；粘贴 Cookie 后点击「创建并打开」将直接导入并登录。</div>
+              <div class="modal-hint">Leave blank to sign in manually later, or paste cookies and click "Create & Open" to import and sign in directly.</div>
             ` : `
               <div class="cookie-import-actions">
-                <span class="modal-hint">适用于 Google OAuth 无法在内置窗口直接登录的场景；导入后自动刷新当前账号。</span>
-                <button id="modal-import-cookie-btn" class="btn mini-test-btn" type="button" ${saving || modal.cookieImporting ? "disabled" : ""}>${modal.cookieImporting ? "导入中..." : "导入 Cookie"}</button>
+                <span class="modal-hint">Useful when Google OAuth cannot sign in inside the embedded view; auto-reloads after import.</span>
+                <button id="modal-import-cookie-btn" class="btn mini-test-btn" type="button" ${saving || modal.cookieImporting ? "disabled" : ""}>${modal.cookieImporting ? "Importing..." : "Import Cookies"}</button>
               </div>
             `}
           </div>
           ${modal.error ? `<div id="modal-error-box" class="update-error-box" role="alert">${escapeHtml(modal.error)}</div>` : ""}
           <div class="modal-footer">
-            ${!creating ? `<button id="modal-clear-data-btn" class="btn danger-outline left-action" type="button" ${saving ? "disabled" : ""}>${modal.confirmClear ? "确认清空？" : "清空登录缓存"}</button>` : ""}
-            <button id="modal-cancel-btn" class="btn" type="button" ${saving ? "disabled" : ""}>取消</button>
-            <button id="modal-confirm-btn" class="btn primary" type="button" ${saving ? "disabled" : ""}>${saving ? (creating ? "创建中..." : "保存中...") : (creating ? "创建并打开" : "保存")}</button>
+            ${!creating ? `<button id="modal-clear-data-btn" class="btn danger-outline left-action" type="button" ${saving ? "disabled" : ""}>${modal.confirmClear ? "Confirm Clear?" : "Clear Login Cache"}</button>` : ""}
+            <button id="modal-cancel-btn" class="btn" type="button" ${saving ? "disabled" : ""}>Cancel</button>
+            <button id="modal-confirm-btn" class="btn primary" type="button" ${saving ? "disabled" : ""}>${saving ? (creating ? "Creating..." : "Saving...") : (creating ? "Create & Open" : "Save")}</button>
           </div>
         </div>
       </div>
@@ -1678,7 +1704,7 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
 
     const extKindGroups: Array<{ kind: ExternalAgentKind; title: string; pid: "api" | "cli" }> = [
       { kind: "openai_api", title: "OpenAI API", pid: "api" },
-      { kind: "local_cli", title: "本地 CLI", pid: "cli" },
+      { kind: "local_cli", title: "Local CLI", pid: "cli" },
     ];
     const externalGroupHtml = extKindGroups
       .map(({ kind, title, pid }) => {
@@ -1686,7 +1712,7 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
         if (list.length === 0) return "";
         return `
           <div class="group-picker-section">
-            <div class="group-picker-provider"><span>${escapeHtml(title)}</span><span class="group-provider-tag">直连</span></div>
+            <div class="group-picker-provider"><span>${escapeHtml(title)}</span><span class="group-provider-tag">Direct</span></div>
             <div class="group-member-list">
               ${list
                 .map((ext) => {
@@ -1734,20 +1760,20 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
     return `
       <div class="${modalOverlayClass()}" role="dialog" aria-modal="true">
         <div class="modal-card group-modal-card">
-          <div class="modal-title">${editing ? `编辑「${escapeHtml(gModal.group!.name)}」` : "创建群聊"}</div>
-          <input id="modal-group-name-input" class="modal-input" maxlength="32" placeholder="群聊名称（如：产品头脑风暴）" aria-label="群聊名称" value="${escapeHtml(gModal.nameDraft)}" ${saving ? "disabled" : ""} />
+          <div class="modal-title">${editing ? `Edit "${escapeHtml(gModal.group!.name)}"` : "Create Group Chat"}</div>
+          <input id="modal-group-name-input" class="modal-input" maxlength="32" placeholder="Group name (e.g. Product Brainstorm)" aria-label="Group name" value="${escapeHtml(gModal.nameDraft)}" ${saving ? "disabled" : ""} />
           <div class="group-picker-head-row">
-            <div class="modal-desc">选择参与群聊的网页账号或 API / CLI 成员</div>
-            <button id="open-external-agents-from-group-btn" class="mini-btn primary-text" type="button" ${saving ? "disabled" : ""}>+ 管理 API/CLI</button>
+            <div class="modal-desc">Select web accounts or API / CLI members to join this group chat</div>
+            <button id="open-external-agents-from-group-btn" class="mini-btn primary-text" type="button" ${saving ? "disabled" : ""}>+ Manage API/CLI</button>
           </div>
           <div class="group-member-picker">
-            ${pickerContent || `<div class="group-picker-empty">当前没有可用成员，可登录网页或点击右上角添加 API / CLI</div>`}
+            ${pickerContent || `<div class="group-picker-empty">No members available yet. Sign in to a web account or add an API / CLI member in the top right.</div>`}
           </div>
           <div id="modal-group-hint" class="modal-hint">${escapeHtml(hintText)}</div>
           ${gModal.error ? `<div id="modal-error-box" class="update-error-box" role="alert">${escapeHtml(gModal.error)}</div>` : ""}
           <div class="modal-footer">
-            <button id="modal-cancel-btn" class="btn" type="button" ${saving ? "disabled" : ""}>取消</button>
-            <button id="modal-confirm-btn" class="btn primary" type="button" ${saving || gModal.selectedMembers.length === 0 ? "disabled" : ""}>${saving ? (editing ? "保存中..." : "创建中...") : (editing ? "保存" : "创建群聊")}</button>
+            <button id="modal-cancel-btn" class="btn" type="button" ${saving ? "disabled" : ""}>Cancel</button>
+            <button id="modal-confirm-btn" class="btn primary" type="button" ${saving || gModal.selectedMembers.length === 0 ? "disabled" : ""}>${saving ? (editing ? "Saving..." : "Creating...") : (editing ? "Save" : "Create Group")}</button>
           </div>
         </div>
       </div>
@@ -1762,16 +1788,16 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
     let tabBody = "";
     if (kModal.tab === "context") {
       tabBody = `
-        <div class="modal-desc">所有被 @ 唤醒的成员在首次进入或配置变更后自动增量同步此上下文，API / CLI 成员每轮自动携带。</div>
+        <div class="modal-desc">Mentioned members automatically sync this context on first entry or after updates; API / CLI members include it on every turn.</div>
         <textarea
           id="modal-group-context-input"
           class="modal-textarea"
           rows="8"
           maxlength="8000"
-          placeholder="例如：项目采用 Tauri + Rust + TypeScript；核心约束是低内存；当前正在排查…"
+          placeholder="Example: Stack is TypeScript + Vite; key constraint is low memory; currently investigating..."
           ${saving ? "disabled" : ""}
         >${escapeHtml(kModal.contextDraft)}</textarea>
-        <div class="modal-hint"><span id="modal-group-context-count">${kModal.contextDraft.length}</span>/8000 字符 · 也可点消息「沉淀上下文」或顶部「沉淀本轮结论」</div>
+        <div class="modal-hint"><span id="modal-group-context-count">${kModal.contextDraft.length}</span>/8000 chars · You can also pin messages or click "Save Round Summary" above</div>
       `;
     } else if (kModal.tab === "skills") {
       const presetsHtml = GROUP_SKILL_PRESETS.map((p, idx) => {
@@ -1781,7 +1807,7 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
 
       const skillsHtml =
         kModal.skillsDraft.length === 0
-          ? `<div class="group-picker-empty">暂未添加共享技能，可点击上方预设或下方自定义添加。</div>`
+          ? `<div class="group-picker-empty">No shared skills added yet. Choose a preset above or add a custom skill below.</div>`
           : kModal.skillsDraft
               .map(
                 (s) => `
@@ -1792,8 +1818,8 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
                     <span class="skill-card-name">${escapeHtml(s.name)}</span>
                   </label>
                   <div class="skill-card-ops">
-                    <button class="mini-btn" data-edit-skill-id="${escapeHtml(s.id)}" type="button" ${saving ? "disabled" : ""}>编辑</button>
-                    <button class="mini-btn danger-text" data-delete-skill-id="${escapeHtml(s.id)}" type="button" ${saving ? "disabled" : ""}>删除</button>
+                    <button class="mini-btn" data-edit-skill-id="${escapeHtml(s.id)}" type="button" ${saving ? "disabled" : ""}>Edit</button>
+                    <button class="mini-btn danger-text" data-delete-skill-id="${escapeHtml(s.id)}" type="button" ${saving ? "disabled" : ""}>Delete</button>
                   </div>
                 </div>
                 <div class="skill-card-desc">${escapeHtml(s.description || s.content)}</div>
@@ -1804,18 +1830,18 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
 
       tabBody = `
         <div class="skill-presets-row">
-          <span class="skill-presets-label">预设：</span>
+          <span class="skill-presets-label">Presets:</span>
           ${presetsHtml}
         </div>
         <div class="skills-list">${skillsHtml}</div>
         <div class="skill-editor-box">
-          <div class="skill-editor-title">${kModal.editingSkillId ? "编辑共享技能" : "添加自定义技能"}</div>
-          <input id="modal-skill-name-input" class="modal-input" maxlength="48" placeholder="技能名称（如：代码审查规范）" value="${escapeHtml(kModal.skillNameDraft)}" ${saving ? "disabled" : ""} />
-          <input id="modal-skill-desc-input" class="modal-input" maxlength="120" placeholder="简短说明（选填）" value="${escapeHtml(kModal.skillDescDraft)}" ${saving ? "disabled" : ""} />
-          <textarea id="modal-skill-content-input" class="modal-textarea" rows="3" maxlength="2000" placeholder="输入注入给各 AI 成员的技能指令原文…" ${saving ? "disabled" : ""}>${escapeHtml(kModal.skillContentDraft)}</textarea>
+          <div class="skill-editor-title">${kModal.editingSkillId ? "Edit Shared Skill" : "Add Custom Skill"}</div>
+          <input id="modal-skill-name-input" class="modal-input" maxlength="48" placeholder="Skill name (e.g. Code Review Guidelines)" value="${escapeHtml(kModal.skillNameDraft)}" ${saving ? "disabled" : ""} />
+          <input id="modal-skill-desc-input" class="modal-input" maxlength="120" placeholder="Short description (optional)" value="${escapeHtml(kModal.skillDescDraft)}" ${saving ? "disabled" : ""} />
+          <textarea id="modal-skill-content-input" class="modal-textarea" rows="3" maxlength="2000" placeholder="Enter skill instructions to inject into each AI member..." ${saving ? "disabled" : ""}>${escapeHtml(kModal.skillContentDraft)}</textarea>
           <div class="skill-editor-actions">
-            ${kModal.editingSkillId ? `<button id="modal-skill-cancel-edit-btn" class="mini-btn" type="button" ${saving ? "disabled" : ""}>取消编辑</button>` : ""}
-            <button id="modal-skill-save-btn" class="mini-btn primary-text" type="button" ${saving ? "disabled" : ""}>${kModal.editingSkillId ? "更新技能" : "+ 添加技能"}</button>
+            ${kModal.editingSkillId ? `<button id="modal-skill-cancel-edit-btn" class="mini-btn" type="button" ${saving ? "disabled" : ""}>Cancel Edit</button>` : ""}
+            <button id="modal-skill-save-btn" class="mini-btn primary-text" type="button" ${saving ? "disabled" : ""}>${kModal.editingSkillId ? "Update Skill" : "+ Add Skill"}</button>
           </div>
         </div>
       `;
@@ -1838,15 +1864,15 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
             }
           }
           const bindingHtml = meta.isExternal
-            ? `<div class="role-thread-row"><span class="thread-stateless-tag">无状态直连（每轮携带完整上下文）</span></div>`
+            ? `<div class="role-thread-row"><span class="thread-stateless-tag">Stateless direct connection (carries full context every turn)</span></div>`
             : binding
               ? `
                 <div class="role-thread-row">
-                  <span class="thread-bound-pill" title="${escapeHtml(binding.threadUrl)}">已绑定专属会话 · ${escapeHtml(boundShort)}</span>
-                  <button class="mini-btn" data-reset-thread-provider="${escapeHtml(m.providerId)}" data-reset-thread-uuid="${escapeHtml(m.uuid)}" type="button" ${saving ? "disabled" : ""}>重置会话</button>
+                  <span class="thread-bound-pill" title="${escapeHtml(binding.threadUrl)}">Bound to dedicated thread · ${escapeHtml(boundShort)}</span>
+                  <button class="mini-btn" data-reset-thread-provider="${escapeHtml(m.providerId)}" data-reset-thread-uuid="${escapeHtml(m.uuid)}" type="button" ${saving ? "disabled" : ""}>Reset Thread</button>
                 </div>
               `
-              : `<div class="role-thread-row"><span class="thread-unbound-tag">首次发消息时自动创建专属会话（不污染日常聊天）</span></div>`;
+              : `<div class="role-thread-row"><span class="thread-unbound-tag">Creates a dedicated thread automatically on first message (keeps regular chats clean)</span></div>`;
 
           return `
             <div class="role-row">
@@ -1860,7 +1886,7 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
                 maxlength="120"
                 data-role-provider="${escapeHtml(m.providerId)}"
                 data-role-uuid="${escapeHtml(m.uuid)}"
-                placeholder="成员分工（如：前端性能优化与交互评审）"
+                placeholder="Member role (e.g. Frontend performance & UX review)"
                 value="${escapeHtml(curRole)}"
                 ${saving ? "disabled" : ""}
               />
@@ -1871,8 +1897,8 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
         .join("");
 
       tabBody = `
-        <div class="modal-desc">配置各成员专属分工指令，并可查看/重置网页成员绑定的群聊独立会话 URL。</div>
-        <div class="role-list">${roleRowsHtml || `<div class="group-picker-empty">暂无成员</div>`}</div>
+        <div class="modal-desc">Configure custom role instructions per member and view or reset dedicated thread URLs for web accounts.</div>
+        <div class="role-list">${roleRowsHtml || `<div class="group-picker-empty">No members</div>`}</div>
       `;
     } else {
       const snap = kModal.adaptersSnap;
@@ -1883,41 +1909,41 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
         )
         .join("");
       tabBody = `
-        <div class="modal-desc">声明式网站适配器（内置 Muse / Hark 规则，可按需热覆盖选择器）与 Fetch/SSE 只读挂钩协同工作。</div>
-        <div class="adapter-chip-row">${chipsHtml || `<span class="modal-hint">正在读取规则…</span>`}</div>
-        <div class="modal-hint">覆盖规则文件（保存即热生效，无需重编译）：<code>${escapeHtml(snap?.overridePath ?? "site_adapters.json")}</code></div>
+        <div class="modal-desc">Declarative site adapters (built-in Muse / Hark rules with hot-reloadable selector overrides) working alongside read-only Fetch/SSE hooks.</div>
+        <div class="adapter-chip-row">${chipsHtml || `<span class="modal-hint">Loading rules...</span>`}</div>
+        <div class="modal-hint">Override file (applied live on save without recompiling): <code>${escapeHtml(snap?.overridePath ?? "site_adapters.json")}</code></div>
         <textarea
           id="modal-adapters-json-input"
           class="modal-textarea code"
           rows="7"
-          placeholder='可选：输入 JSON 数组覆盖内置规则，例如 [{"id":"muse","name":"Muse","hostPatterns":["muse.ai"],"composerSelectors":["textarea"]}]'
+          placeholder='Optional: enter a JSON array to override built-in rules, e.g. [{"id":"muse","name":"Muse","hostPatterns":["muse.ai"],"composerSelectors":["textarea"]}]'
           ${saving ? "disabled" : ""}
         >${escapeHtml(kModal.adaptersJsonDraft)}</textarea>
         <div class="skill-editor-actions">
-          <button id="modal-adapters-reset-btn" class="mini-btn" type="button" ${saving || !snap?.hasOverrides ? "disabled" : ""}>恢复内置默认</button>
+          <button id="modal-adapters-reset-btn" class="mini-btn" type="button" ${saving || !snap?.hasOverrides ? "disabled" : ""}>Restore Built-in Defaults</button>
         </div>
       `;
     }
 
     const confirmLabel =
       kModal.tab === "adapters"
-        ? saving ? "保存中..." : "保存并热生效"
-        : saving ? "保存中..." : "保存配置";
+        ? saving ? "Saving..." : "Save & Apply Live"
+        : saving ? "Saving..." : "Save Config";
 
     return `
       <div class="${modalOverlayClass()}" role="dialog" aria-modal="true">
         <div class="modal-card group-knowledge-modal-card">
-          <div class="modal-title">共享上下文 & 技能 · ${escapeHtml(latestGroup.name)}</div>
+          <div class="modal-title">Shared Context & Skills · ${escapeHtml(latestGroup.name)}</div>
           <div class="knowledge-tabs">
-            <button class="knowledge-tab ${kModal.tab === "context" ? "active" : ""}" data-knowledge-tab="context" type="button" ${saving ? "disabled" : ""}>共享上下文</button>
-            <button class="knowledge-tab ${kModal.tab === "skills" ? "active" : ""}" data-knowledge-tab="skills" type="button" ${saving ? "disabled" : ""}>共享技能 (${enabledCount})</button>
-            <button class="knowledge-tab ${kModal.tab === "roles" ? "active" : ""}" data-knowledge-tab="roles" type="button" ${saving ? "disabled" : ""}>分工 &amp; 会话</button>
-            <button class="knowledge-tab ${kModal.tab === "adapters" ? "active" : ""}" data-knowledge-tab="adapters" type="button" ${saving ? "disabled" : ""}>站点规则${kModal.adaptersSnap?.hasOverrides ? " *" : ""}</button>
+            <button class="knowledge-tab ${kModal.tab === "context" ? "active" : ""}" data-knowledge-tab="context" type="button" ${saving ? "disabled" : ""}>Shared Context</button>
+            <button class="knowledge-tab ${kModal.tab === "skills" ? "active" : ""}" data-knowledge-tab="skills" type="button" ${saving ? "disabled" : ""}>Shared Skills (${enabledCount})</button>
+            <button class="knowledge-tab ${kModal.tab === "roles" ? "active" : ""}" data-knowledge-tab="roles" type="button" ${saving ? "disabled" : ""}>Roles &amp; Threads</button>
+            <button class="knowledge-tab ${kModal.tab === "adapters" ? "active" : ""}" data-knowledge-tab="adapters" type="button" ${saving ? "disabled" : ""}>Site Rules${kModal.adaptersSnap?.hasOverrides ? " *" : ""}</button>
           </div>
           ${tabBody}
           ${kModal.error ? `<div id="modal-error-box" class="update-error-box" role="alert">${escapeHtml(kModal.error)}</div>` : ""}
           <div class="modal-footer">
-            <button id="modal-cancel-btn" class="btn" type="button" ${saving ? "disabled" : ""}>取消</button>
+            <button id="modal-cancel-btn" class="btn" type="button" ${saving ? "disabled" : ""}>Cancel</button>
             <button id="modal-confirm-btn" class="btn primary" type="button" ${saving ? "disabled" : ""}>${confirmLabel}</button>
           </div>
         </div>
@@ -1934,7 +1960,7 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
     ).join("");
     const listHtml =
       agents.length === 0
-        ? `<div class="group-picker-empty">暂未配置 API 或本地 CLI 成员，可点击下方预设或手动添加。</div>`
+        ? `<div class="group-picker-empty">No API or local CLI members configured yet. Pick a preset below or add one manually.</div>`
         : agents
             .map((ext) => {
               const desc =
@@ -1951,8 +1977,8 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
                     </div>
                   </div>
                   <div class="skill-card-ops">
-                    <button class="mini-btn" data-edit-ext-id="${escapeHtml(ext.id)}" type="button" ${saving ? "disabled" : ""}>编辑</button>
-                    <button class="mini-btn danger-text" data-delete-ext-id="${escapeHtml(ext.id)}" type="button" ${saving ? "disabled" : ""}>删除</button>
+                    <button class="mini-btn" data-edit-ext-id="${escapeHtml(ext.id)}" type="button" ${saving ? "disabled" : ""}>Edit</button>
+                    <button class="mini-btn danger-text" data-delete-ext-id="${escapeHtml(ext.id)}" type="button" ${saving ? "disabled" : ""}>Delete</button>
                   </div>
                 </div>
               `;
@@ -1962,44 +1988,44 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
     const fieldsHtml =
       eModal.formKind === "openai_api"
         ? `
-          <input id="ext-agent-url-input" class="modal-input" maxlength="260" placeholder="Base URL（例如 https://api.deepseek.com/v1 或 http://127.0.0.1:11434/v1）" value="${escapeHtml(eModal.baseUrlDraft)}" ${saving ? "disabled" : ""} />
-          <input id="ext-agent-key-input" class="modal-input" maxlength="512" type="password" placeholder="API Key（本机 Ollama 可留空）" value="${escapeHtml(eModal.apiKeyDraft)}" ${saving ? "disabled" : ""} />
-          <input id="ext-agent-model-input" class="modal-input" maxlength="120" placeholder="模型名称（例如 gpt-4o / deepseek-chat / qwen2.5:14b）" value="${escapeHtml(eModal.modelDraft)}" ${saving ? "disabled" : ""} />
+          <input id="ext-agent-url-input" class="modal-input" maxlength="260" placeholder="Base URL (e.g. https://api.deepseek.com/v1 or http://127.0.0.1:11434/v1)" value="${escapeHtml(eModal.baseUrlDraft)}" ${saving ? "disabled" : ""} />
+          <input id="ext-agent-key-input" class="modal-input" maxlength="512" type="password" placeholder="API Key (optional for local Ollama)" value="${escapeHtml(eModal.apiKeyDraft)}" ${saving ? "disabled" : ""} />
+          <input id="ext-agent-model-input" class="modal-input" maxlength="120" placeholder="Model name (e.g. gpt-4o / deepseek-chat / qwen2.5:14b)" value="${escapeHtml(eModal.modelDraft)}" ${saving ? "disabled" : ""} />
         `
         : `
-          <input id="ext-agent-cmd-input" class="modal-input" maxlength="260" placeholder="CLI 命令（例如 claude / codex / gemini）" value="${escapeHtml(eModal.commandDraft)}" ${saving ? "disabled" : ""} />
-          <input id="ext-agent-args-input" class="modal-input" maxlength="400" placeholder="命令参数，空格分隔（例如 -p 或 exec {prompt}；无 {prompt} 时走 stdin）" value="${escapeHtml(eModal.argsDraft)}" ${saving ? "disabled" : ""} />
-          <input id="ext-agent-workdir-input" class="modal-input" maxlength="260" placeholder="工作目录（选填，例如 /Users/name/project）" value="${escapeHtml(eModal.workdirDraft)}" ${saving ? "disabled" : ""} />
+          <input id="ext-agent-cmd-input" class="modal-input" maxlength="260" placeholder="CLI command (e.g. claude / codex / gemini)" value="${escapeHtml(eModal.commandDraft)}" ${saving ? "disabled" : ""} />
+          <input id="ext-agent-args-input" class="modal-input" maxlength="400" placeholder="Space-separated args (e.g. -p or exec {prompt}; defaults to stdin without {prompt})" value="${escapeHtml(eModal.argsDraft)}" ${saving ? "disabled" : ""} />
+          <input id="ext-agent-workdir-input" class="modal-input" maxlength="260" placeholder="Working directory (optional, e.g. /Users/name/project)" value="${escapeHtml(eModal.workdirDraft)}" ${saving ? "disabled" : ""} />
         `;
 
     return `
       <div class="${modalOverlayClass()}" role="dialog" aria-modal="true">
         <div class="modal-card group-knowledge-modal-card">
-          <div class="modal-title">API / 本地 CLI 混合成员</div>
-          <div class="modal-desc">配置直连 OpenAI 兼容接口或本地 CLI（如 Claude Code / Codex），与网页端账号混编入同一个群聊。</div>
+          <div class="modal-title">API / Local CLI Members</div>
+          <div class="modal-desc">Configure OpenAI-compatible APIs or local CLI agents (such as Claude Code or Codex) to collaborate alongside web accounts in any group chat.</div>
           <div class="ext-agent-list">${listHtml}</div>
           <div class="skill-presets-row">
-            <span class="skill-presets-label">快速填充：</span>
+            <span class="skill-presets-label">Quick fill:</span>
             ${presetsHtml}
           </div>
           <div class="skill-editor-box">
             <div class="ext-form-head">
-              <span class="skill-editor-title">${eModal.editingId ? "编辑成员" : "新增直连成员"}</span>
+              <span class="skill-editor-title">${eModal.editingId ? "Edit Member" : "Add Direct Member"}</span>
               <div class="ext-kind-switch">
                 <button class="mini-btn ${eModal.formKind === "openai_api" ? "primary-text" : ""}" data-ext-kind="openai_api" type="button" ${saving ? "disabled" : ""}>OpenAI API</button>
-                <button class="mini-btn ${eModal.formKind === "local_cli" ? "primary-text" : ""}" data-ext-kind="local_cli" type="button" ${saving ? "disabled" : ""}>本地 CLI</button>
+                <button class="mini-btn ${eModal.formKind === "local_cli" ? "primary-text" : ""}" data-ext-kind="local_cli" type="button" ${saving ? "disabled" : ""}>Local CLI</button>
               </div>
             </div>
-            <input id="ext-agent-name-input" class="modal-input" maxlength="40" placeholder="群聊显示名称（如：Claude-Code / DeepSeek）" value="${escapeHtml(eModal.nameDraft)}" ${saving ? "disabled" : ""} />
+            <input id="ext-agent-name-input" class="modal-input" maxlength="40" placeholder="Group display name (e.g. Claude-Code / DeepSeek)" value="${escapeHtml(eModal.nameDraft)}" ${saving ? "disabled" : ""} />
             ${fieldsHtml}
             <div class="skill-editor-actions">
-              ${eModal.editingId ? `<button id="ext-agent-cancel-edit-btn" class="mini-btn" type="button" ${saving ? "disabled" : ""}>取消编辑</button>` : ""}
-              <button id="ext-agent-save-btn" class="mini-btn primary-text" type="button" ${saving ? "disabled" : ""}>${saving ? "保存中..." : eModal.editingId ? "更新成员" : "+ 保存成员"}</button>
+              ${eModal.editingId ? `<button id="ext-agent-cancel-edit-btn" class="mini-btn" type="button" ${saving ? "disabled" : ""}>Cancel Edit</button>` : ""}
+              <button id="ext-agent-save-btn" class="mini-btn primary-text" type="button" ${saving ? "disabled" : ""}>${saving ? "Saving..." : eModal.editingId ? "Update Member" : "+ Save Member"}</button>
             </div>
           </div>
           ${eModal.error ? `<div id="modal-error-box" class="update-error-box" role="alert">${escapeHtml(eModal.error)}</div>` : ""}
           <div class="modal-footer">
-            <button id="modal-cancel-btn" class="btn primary" type="button" ${saving ? "disabled" : ""}>完成</button>
+            <button id="modal-cancel-btn" class="btn primary" type="button" ${saving ? "disabled" : ""}>Done</button>
           </div>
         </div>
       </div>
@@ -2009,11 +2035,11 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
     return `
       <div class="${modalOverlayClass()}" role="dialog" aria-modal="true">
         <div class="modal-card">
-          <div class="modal-title">删除群聊「${escapeHtml(modal.group.name)}」</div>
-          <div class="modal-desc">将删除该群聊及本地群聊记录。各成员账号与原生网页历史不受影响。</div>
+          <div class="modal-title">Delete Group "${escapeHtml(modal.group.name)}"</div>
+          <div class="modal-desc">Removes this group chat and its local message history. Member accounts and native web histories are unaffected.</div>
           <div class="modal-footer">
-            <button id="modal-cancel-btn" class="btn" type="button">取消</button>
-            <button id="modal-confirm-btn" class="btn danger" type="button">确认删除</button>
+            <button id="modal-cancel-btn" class="btn" type="button">Cancel</button>
+            <button id="modal-confirm-btn" class="btn danger" type="button">Delete</button>
           </div>
         </div>
       </div>
@@ -2022,11 +2048,11 @@ function renderModal(state: ManagerSnapshot, provider: ProviderInfo): string {
   return `
     <div class="${modalOverlayClass()}" role="dialog" aria-modal="true">
       <div class="modal-card">
-        <div class="modal-title">移除「${escapeHtml(modal.account.alias)}」</div>
-        <div class="modal-desc">将关闭该视图并彻底清除本机独立浏览资料（Cookie 与存储）。云端账号及历史对话仍由官方保留。</div>
+        <div class="modal-title">Remove "${escapeHtml(modal.account.alias)}"</div>
+        <div class="modal-desc">Closes this view and removes its isolated local browsing profile (cookies and storage). Cloud accounts and remote chat history remain intact.</div>
         <div class="modal-footer">
-          <button id="modal-cancel-btn" class="btn" type="button">取消</button>
-          <button id="modal-confirm-btn" class="btn danger" type="button">确认移除</button>
+          <button id="modal-cancel-btn" class="btn" type="button">Cancel</button>
+          <button id="modal-confirm-btn" class="btn danger" type="button">Remove</button>
         </div>
       </div>
     </div>
@@ -2045,7 +2071,7 @@ function renderMiddleContent(state: ManagerSnapshot, provider: ProviderInfo): st
     ? `
       <div class="notice-bar">
         <span>${escapeHtml(state.notice)}</span>
-        <button id="dismiss-notice-btn" class="notice-close" type="button" title="关闭提示">✕</button>
+        <button id="dismiss-notice-btn" class="notice-close" type="button" title="Dismiss notice">✕</button>
       </div>
     `
     : "";
@@ -2054,12 +2080,12 @@ function renderMiddleContent(state: ManagerSnapshot, provider: ProviderInfo): st
     .map(
       (c) => `
       <div class="conflict-box">
-        <div>检测到 UUID 归属冲突（${escapeHtml(c.uuid.slice(0, 8))}…），请选择保留归属服务：</div>
+        <div>UUID ownership conflict detected (${escapeHtml(c.uuid.slice(0, 8))}…), choose the service to keep:</div>
         <div class="conflict-actions">
           ${c.providers
             .map(
               (pid) =>
-                `<button class="mini-btn" data-resolve-uuid="${escapeHtml(c.uuid)}" data-resolve-provider="${escapeHtml(pid)}" type="button">归属 ${escapeHtml(pid.toUpperCase())}</button>`
+                `<button class="mini-btn" data-resolve-uuid="${escapeHtml(c.uuid)}" data-resolve-provider="${escapeHtml(pid)}" type="button">Assign to ${escapeHtml(pid.toUpperCase())}</button>`
             )
             .join("")}
         </div>
@@ -2070,13 +2096,13 @@ function renderMiddleContent(state: ManagerSnapshot, provider: ProviderInfo): st
 
   const hasUpdate = Boolean(updateState.result?.hasUpdate);
   const mobileSyncBtn = isMobile
-    ? `<button id="sync-btn" class="ghost-icon-btn" type="button" title="多端加密同步">${ICON_SYNC}</button>`
+    ? `<button id="sync-btn" class="ghost-icon-btn" type="button" title="Multi-device encrypted sync">${ICON_SYNC}</button>`
     : "";
   const mobileThemeBtn = isMobile
-    ? `<button id="theme-toggle-btn" class="ghost-icon-btn" type="button" title="主题：${themeLabel(themeMode)}（点击切换）">${themeIcon(themeMode)}</button>`
+    ? `<button id="theme-toggle-btn" class="ghost-icon-btn" type="button" title="Theme: ${themeLabel(themeMode)} (click to switch)">${themeIcon(themeMode)}</button>`
     : "";
   const mobileUpdateBtn = isMobile
-    ? `<button id="check-update-btn" class="ghost-icon-btn update-trigger-btn ${hasUpdate ? "has-update" : ""}" type="button" title="${hasUpdate ? `发现新版本 v${escapeHtml(updateState.result!.latestVersion)}` : "检查更新"}">${ICON_UPDATE}${hasUpdate ? `<span class="update-dot"></span>` : ""}</button>`
+    ? `<button id="check-update-btn" class="ghost-icon-btn update-trigger-btn ${hasUpdate ? "has-update" : ""}" type="button" title="${hasUpdate ? `New version v${escapeHtml(updateState.result!.latestVersion)}` : "Check for updates"}">${ICON_UPDATE}${hasUpdate ? `<span class="update-dot"></span>` : ""}</button>`
     : "";
 
   const headerBtnHtml = provider.enabled
@@ -2084,21 +2110,21 @@ function renderMiddleContent(state: ManagerSnapshot, provider: ProviderInfo): st
       ${mobileSyncBtn}
       ${mobileThemeBtn}
       ${mobileUpdateBtn}
-      ${!isMobile ? `<button id="sync-all-btn" class="ghost-icon-btn" type="button" title="刷新已就绪账号额度">${ICON_REFRESH}</button>` : ""}
-      <button id="open-site-btn" class="ghost-icon-btn" type="button" title="在浏览器中打开 ${escapeHtml(provider.shortName)} 官网">${ICON_EXTERNAL}</button>
-      <button id="add-account-btn" class="icon-btn primary" type="button">+ 新增</button>
+      ${!isMobile ? `<button id="sync-all-btn" class="ghost-icon-btn" type="button" title="Refresh quota for ready accounts">${ICON_REFRESH}</button>` : ""}
+      <button id="open-site-btn" class="ghost-icon-btn" type="button" title="Open ${escapeHtml(provider.shortName)} website in browser">${ICON_EXTERNAL}</button>
+      <button id="add-account-btn" class="icon-btn primary" type="button">+ Add</button>
     `
-    : `${mobileSyncBtn}${mobileThemeBtn}${mobileUpdateBtn}<button id="open-site-btn" class="icon-btn primary" type="button">打开官网 ${ICON_EXTERNAL}</button>`;
+    : `${mobileSyncBtn}${mobileThemeBtn}${mobileUpdateBtn}<button id="open-site-btn" class="icon-btn primary" type="button">Open Site ${ICON_EXTERNAL}</button>`;
 
   const listToolbarHtml =
     provider.enabled && providerAccounts.length >= 2 && state.conflicts.length === 0
       ? `
         <div class="list-toolbar">
-          <button id="smart-switch-btn" class="toolbar-chip" type="button" title="切换到剩余可用额度最多的账号">
-            ${ICON_BOLT}<span>切到余量最多</span>
+          <button id="smart-switch-btn" class="toolbar-chip" type="button" title="Switch to the account with the highest remaining quota">
+            ${ICON_BOLT}<span>Highest Quota</span>
           </button>
-          <button id="sort-quota-btn" class="toolbar-chip" type="button" title="按剩余可用额度从高到低排序">
-            ${ICON_SORT}<span>按额度排序</span>
+          <button id="sort-quota-btn" class="toolbar-chip" type="button" title="Sort by remaining available quota (high to low)">
+            ${ICON_SORT}<span>Sort by Quota</span>
           </button>
         </div>
       `
@@ -2109,16 +2135,16 @@ function renderMiddleContent(state: ManagerSnapshot, provider: ProviderInfo): st
     listBody = `
       <div class="empty-list">
         <div class="empty-icon-circle">${renderProviderLogo(provider)}</div>
-        <div><strong>${escapeHtml(provider.name)}</strong> 暂未开放内嵌会话</div>
-        <div>待核验官方网页直登路径与嵌入条款后启用，可点击右上角访问官网。</div>
+        <div><strong>${escapeHtml(provider.name)}</strong> embedded session coming soon</div>
+        <div>Pending verification of official direct sign-in and embedding terms. Use the top-right button to open the website.</div>
       </div>
     `;
   } else if (providerAccounts.length === 0) {
     listBody = `
       <div class="empty-list">
         <div class="empty-icon-circle">${ICON_USER_PLUS}</div>
-        <div>暂无 ${escapeHtml(provider.shortName)} 账号</div>
-        <div>点击右上角「+ 新增」创建独立登录环境</div>
+        <div>No ${escapeHtml(provider.shortName)} accounts yet</div>
+        <div>Click "+ Add" in the top right to create an isolated sign-in session</div>
       </div>
     `;
   } else {
@@ -2146,50 +2172,51 @@ function renderMiddleContent(state: ManagerSnapshot, provider: ProviderInfo): st
         const isMac = navigator.userAgent.includes("Mac");
         const shortcutHint =
           !isMobile && idx < 9
-            ? `<span class="shortcut-pill" title="快捷切号">${isMac ? "⌘" : "^"}${idx + 1}</span>`
+            ? `<span class="shortcut-pill" title="Quick switch shortcut">${isMac ? "⌘" : "^"}${idx + 1}</span>`
             : "";
         const proxyBadgeHtml =
           supportsProxy && acc.proxyUrl
-            ? `<span class="proxy-pill" title="代理：${escapeHtml(acc.proxyUrl)}">代理</span>`
+            ? `<span class="proxy-pill" title="Proxy: ${escapeHtml(acc.proxyUrl)}">Proxy</span>`
             : "";
         const timezoneBadgeHtml = acc.timezone
-          ? `<span class="proxy-pill" title="时区：${escapeHtml(acc.timezone)}">${escapeHtml(acc.timezone)}</span>`
+          ? `<span class="proxy-pill" title="Time zone: ${escapeHtml(acc.timezone)}">${escapeHtml(acc.timezone)}</span>`
           : "";
         const alertBadgeHtml = switching
-          ? `<span class="loading-status-badge">加载中…</span>`
+          ? `<span class="loading-status-badge">Loading…</span>`
           : isLoggedOut
-            ? `<span class="auth-status-badge">未登录</span>`
+            ? `<span class="auth-status-badge">Signed out</span>`
             : hasPageError
-              ? `<span class="auth-status-badge error">状态异常</span>`
+              ? `<span class="auth-status-badge error">Page error</span>`
               : alertStatus !== "normal"
                 ? `<span class="quota-warning-badge ${alertStatus}">${alertLabel}</span>`
                 : "";
 
         let compactSubHtml = "";
         if (switching && !hasDetail && !hasPageError) {
-          compactSubHtml = `<div class="account-sub loading-text"><span class="quota-label-text">正在加载…</span></div>`;
+          compactSubHtml = `<div class="account-sub loading-text"><span class="quota-label-text">Loading…</span></div>`;
         } else if (isLoggedOut) {
           const loginHint = active
             ? isMobile
-              ? "登录已失效，点击进入重新登录"
-              : "登录已失效，请在右侧重新登录"
+              ? "Session expired, tap to sign in again"
+              : "Session expired, please sign in again on the right"
             : acc.autoAlias
-              ? "尚未登录，点击前往登录"
-              : "登录已失效，点击重新登录";
+              ? "Not signed in, click to sign in"
+              : "Session expired, click to sign in again";
           compactSubHtml = `<div class="account-sub auth-logged-out"><span class="auth-dot-inline"></span><span class="quota-label-text">${loginHint}</span></div>`;
         } else if (hasPageError) {
-          compactSubHtml = `<div class="account-sub auth-page-error"><span class="auth-dot-inline error"></span><span class="quota-label-text">${escapeHtml(pageError!)}</span><button class="inline-relogin-btn" data-relogin-uuid="${escapeHtml(acc.uuid)}" type="button">清理重登</button></div>`;
+          compactSubHtml = `<div class="account-sub auth-page-error"><span class="auth-dot-inline error"></span><span class="quota-label-text">${escapeHtml(pageError!)}</span><button class="inline-relogin-btn" data-relogin-uuid="${escapeHtml(acc.uuid)}" type="button">Reset & Sign In</button></div>`;
         } else if (!hasDetail) {
           const fallbackLabel = acc.autoAlias
-            ? "登录后自动同步额度"
-            : "正在同步额度明细…";
+            ? "Quota syncs after sign-in"
+            : "Syncing quota details…";
           const quotaLabel = acc.quotaText ?? fallbackLabel;
           const isEmpty =
-            acc.quotaPercent === 0 || Boolean(acc.quotaText?.includes("用尽"));
+            acc.quotaPercent === 0 ||
+            Boolean(acc.quotaText?.includes("用尽") || /exhausted|depleted/i.test(acc.quotaText ?? ""));
           const isLow =
             !isEmpty &&
             ((typeof acc.quotaPercent === "number" && acc.quotaPercent <= 20) ||
-              Boolean(acc.quotaText?.includes("偏低")));
+              Boolean(acc.quotaText?.includes("偏低") || /\blow\b/i.test(acc.quotaText ?? "")));
           const subClass = isEmpty
             ? "account-sub quota-empty"
             : isLow
@@ -2228,7 +2255,7 @@ function renderMiddleContent(state: ManagerSnapshot, provider: ProviderInfo): st
           !hasPageError &&
           acc.authState === "authenticated" &&
           acc.autoAlias &&
-          acc.alias === "已登录账号";
+          (acc.alias === "已登录账号" || acc.alias === "Signed-in Account");
 
         return `
           <div class="${rowClass}" data-switch-uuid="${escapeHtml(acc.uuid)}" ${!isMobile && canReorder ? `draggable="true"` : ""}>
@@ -2246,27 +2273,27 @@ function renderMiddleContent(state: ManagerSnapshot, provider: ProviderInfo): st
                   ${timezoneBadgeHtml}
                   ${alertBadgeHtml}
                 </div>
-                ${showManualAliasHint ? `<div class="alias-manual-hint"><span>未获取到邮箱</span><button class="inline-rename-link" data-rename-uuid="${escapeHtml(acc.uuid)}" type="button">手动改名</button></div>` : ""}
+                ${showManualAliasHint ? `<div class="alias-manual-hint"><span>Email unavailable</span><button class="inline-rename-link" data-rename-uuid="${escapeHtml(acc.uuid)}" type="button">Rename manually</button></div>` : ""}
                 ${compactSubHtml}
                 ${!hasDetail && !isLoggedOut && !hasPageError && !switching && cookieInfo ? `<div class="cookie-expiry-line inline ${cookieInfo.tone}" title="${escapeHtml(cookieInfo.tooltip)}"><span class="cookie-expiry-dot"></span><span>${escapeHtml(cookieInfo.shortText)}</span></div>` : ""}
               </div>
               <div class="row-ops">
                 ${canReorder ? `
                   <div class="reorder-stack">
-                    <button class="reorder-btn" data-move-uuid="${escapeHtml(acc.uuid)}" data-move-dir="up" title="上移" aria-label="上移" type="button" ${idx === 0 ? "disabled" : ""}>▲</button>
-                    <button class="reorder-btn" data-move-uuid="${escapeHtml(acc.uuid)}" data-move-dir="down" title="下移" aria-label="下移" type="button" ${idx === providerAccounts.length - 1 ? "disabled" : ""}>▼</button>
+                    <button class="reorder-btn" data-move-uuid="${escapeHtml(acc.uuid)}" data-move-dir="up" title="Move up" aria-label="Move up" type="button" ${idx === 0 ? "disabled" : ""}>▲</button>
+                    <button class="reorder-btn" data-move-uuid="${escapeHtml(acc.uuid)}" data-move-dir="down" title="Move down" aria-label="Move down" type="button" ${idx === providerAccounts.length - 1 ? "disabled" : ""}>▼</button>
                   </div>
                 ` : ""}
                 ${!isMobile ? `
-                  <button class="action-icon-btn ${switching ? "spinning" : ""}" data-reload-uuid="${escapeHtml(acc.uuid)}" title="强制刷新页面" type="button" ${switching ? "disabled" : ""}>${ICON_REFRESH}</button>
+                  <button class="action-icon-btn ${switching ? "spinning" : ""}" data-reload-uuid="${escapeHtml(acc.uuid)}" title="Force refresh page" type="button" ${switching ? "disabled" : ""}>${ICON_REFRESH}</button>
                 ` : ""}
                 ${supportsCookieCopy ? `
-                  <button class="action-icon-btn copy-cookie-btn" data-copy-cookie-uuid="${escapeHtml(acc.uuid)}" data-copy-label="复制 Cookie" aria-label="复制 Cookie" type="button">
+                  <button class="action-icon-btn copy-cookie-btn" data-copy-cookie-uuid="${escapeHtml(acc.uuid)}" data-copy-label="Copy Cookie" aria-label="Copy Cookie" type="button">
                     <span class="copy-cookie-icon" aria-hidden="true"></span>
                   </button>
                 ` : ""}
-                <button class="action-icon-btn" data-rename-uuid="${escapeHtml(acc.uuid)}" title="账号设置" type="button">${ICON_EDIT}</button>
-                <button class="action-icon-btn danger" data-remove-uuid="${escapeHtml(acc.uuid)}" title="从本机移除" type="button">${ICON_TRASH}</button>
+                <button class="action-icon-btn" data-rename-uuid="${escapeHtml(acc.uuid)}" title="Account settings" type="button">${ICON_EDIT}</button>
+                <button class="action-icon-btn danger" data-remove-uuid="${escapeHtml(acc.uuid)}" title="Remove from device" type="button">${ICON_TRASH}</button>
               </div>
             </div>
             ${!isLoggedOut && !hasPageError && acc.quotaDetail ? renderQuotaDetailPanel(acc.quotaDetail, alertStatus, extraDepleted) : ""}
@@ -2306,15 +2333,15 @@ function renderDownloadToast(): string {
   const isDone = downloadToast.status === "completed";
   const isFail = downloadToast.status === "failed";
   const label = isStarted
-    ? `正在下载：${downloadToast.filename}`
+    ? `Downloading: ${downloadToast.filename}`
     : isDone
-      ? `下载完成：${downloadToast.filename}`
-      : `下载失败：${downloadToast.filename}${downloadToast.error ? `（${downloadToast.error}）` : ""}`;
+      ? `Download complete: ${downloadToast.filename}`
+      : `Download failed: ${downloadToast.filename}${downloadToast.error ? ` (${downloadToast.error})` : ""}`;
   return `
     <div id="download-toast" class="download-toast ${isFail ? "error" : isDone ? "success" : ""}" role="status" aria-live="polite">
       <span class="download-toast-text" title="${escapeHtml(label)}">${escapeHtml(label)}</span>
-      ${isDone ? `<button id="download-reveal-btn" class="download-toast-action" data-download-id="${downloadToast.id}" type="button">在文件夹中显示</button>` : ""}
-      <button id="download-close-btn" class="download-toast-close" type="button" aria-label="关闭下载提示">✕</button>
+      ${isDone ? `<button id="download-reveal-btn" class="download-toast-action" data-download-id="${downloadToast.id}" type="button">Show in Folder</button>` : ""}
+      <button id="download-close-btn" class="download-toast-close" type="button" aria-label="Dismiss download notice">✕</button>
     </div>
   `;
 }
@@ -2336,8 +2363,8 @@ function renderRightStage(state: ManagerSnapshot, provider: ProviderInfo): strin
             <span class="stage-orbit-ring"></span>
             <div class="stage-logo-tile">${renderProviderLogo(provider)}</div>
           </div>
-          <div class="placeholder-title">正在加载「${escapeHtml(targetName)}」</div>
-          <div class="placeholder-desc">首次打开正在渲染 ${escapeHtml(provider.shortName)} 页面，加载完成后再次切换将瞬间直达…</div>
+          <div class="placeholder-title">Loading "${escapeHtml(targetName)}"</div>
+          <div class="placeholder-desc">Rendering ${escapeHtml(provider.shortName)} for the first time. Subsequent switches will be instant…</div>
           <div class="progress-track"><div class="progress-bar"></div></div>
         </div>
       </main>
@@ -2349,12 +2376,46 @@ function renderRightStage(state: ManagerSnapshot, provider: ProviderInfo): strin
       <main class="right-placeholder">
         <div class="stage-card">
           <div class="stage-logo-tile">${renderProviderLogo(provider)}</div>
-          <div class="placeholder-title">${escapeHtml(provider.name)} · 待接入</div>
-          <div class="placeholder-desc">首版暂未启用应用内嵌会话。访问官网不会覆盖上次已打开的账号记录。</div>
-          <button id="stage-open-site-btn" class="btn primary" type="button">打开 ${escapeHtml(provider.shortName)} 官网</button>
+          <div class="placeholder-title">${escapeHtml(provider.name)} · Coming Soon</div>
+          <div class="placeholder-desc">Embedded sessions are not yet enabled for this provider. Opening the website will not overwrite your last active account.</div>
+          <button id="stage-open-site-btn" class="btn primary" type="button">Open ${escapeHtml(provider.shortName)} Website</button>
         </div>
       </main>
     `;
+  }
+
+  if (!isTauriRuntime() && state.activeAccount) {
+    const activeAcc = state.accounts.find(
+      (a) =>
+        a.providerId === state.activeAccount!.providerId &&
+        a.uuid === state.activeAccount!.uuid
+    );
+    if (activeAcc) {
+      const authLabel =
+        activeAcc.authState === "authenticated"
+          ? "Signed in"
+          : activeAcc.authState === "logged_out"
+            ? "Signed out"
+            : "Pending sync";
+      const quotaInfo = activeAcc.quotaText ? ` · Quota: ${activeAcc.quotaText}` : "";
+      const tzInfo = activeAcc.timezone ? ` · Time zone: ${activeAcc.timezone}` : "";
+      return `
+        <main class="right-placeholder">
+          <div class="stage-card">
+            <div class="stage-logo-tile">${renderProviderLogo(provider)}</div>
+            <div class="placeholder-title">${escapeHtml(activeAcc.alias)}</div>
+            <div class="placeholder-desc">
+              ${escapeHtml(provider.name)} · ${authLabel}${escapeHtml(quotaInfo)}${escapeHtml(tzInfo)}<br/>
+              Web preview mode: isolated native WebView sessions run inside the Tauri desktop/mobile shell. Here you can manage accounts, import cookies, edit site adapters, and orchestrate multi-agent group chats.
+            </div>
+            <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+              <button id="stage-account-settings-btn" class="btn" type="button">Account Settings</button>
+              <button id="stage-open-site-btn" class="btn primary" type="button">Open ${escapeHtml(provider.shortName)} Website</button>
+            </div>
+          </div>
+        </main>
+      `;
+    }
   }
 
   return `
@@ -2362,8 +2423,8 @@ function renderRightStage(state: ManagerSnapshot, provider: ProviderInfo): strin
       <div class="stage-card">
         <div class="stage-logo-tile">${renderProviderLogo(provider)}</div>
         <div class="placeholder-title">${escapeHtml(provider.name)}</div>
-        <div class="placeholder-desc">从左侧选择一个账号进入对话，或新建账号开启独立隔离登录。</div>
-        <button id="stage-add-btn" class="btn primary" type="button">+ 新增 ${escapeHtml(provider.shortName)} 账号</button>
+        <div class="placeholder-desc">Select an account on the left to open its session, or add a new account for an isolated sign-in environment.</div>
+        <button id="stage-add-btn" class="btn primary" type="button">+ Add ${escapeHtml(provider.shortName)} Account</button>
       </div>
     </main>
   `;
@@ -2372,7 +2433,7 @@ function renderRightStage(state: ManagerSnapshot, provider: ProviderInfo): strin
 async function openCreateGroupModal(state: ManagerSnapshot): Promise<void> {
   await setModal({
     kind: "group",
-    nameDraft: `群聊 ${state.groupChats.length + 1}`,
+    nameDraft: `Group Chat ${state.groupChats.length + 1}`,
     selectedMembers: [],
   });
 }
@@ -2429,7 +2490,7 @@ function isAsciiWordChar(ch: string | undefined): boolean {
   return Boolean(ch && /^[A-Za-z0-9_]$/.test(ch));
 }
 
-const ALL_MENTION_KEYWORDS = ["全体成员", "所有人", "全体", "all"];
+const ALL_MENTION_KEYWORDS = ["all", "everyone", "全体成员", "所有人", "全体"];
 
 function scanTextMentions<T extends { alias: string }>(
   text: string,
@@ -2489,7 +2550,7 @@ function extractComposerAtMentions(
     return { hasMention: false, isAll: false, targets: [], labels: [] };
   }
   if (hits.some((h) => h.isAll)) {
-    return { hasMention: true, isAll: true, targets: [], labels: ["全体成员"] };
+    return { hasMention: true, isAll: true, targets: [], labels: ["All members"] };
   }
   const targets: AccountKey[] = [];
   const labels: string[] = [];
@@ -2531,11 +2592,11 @@ function formatReviewStageChain(labels: string[]): string {
     .map((label, idx) => {
       const stage =
         idx === 0
-          ? "初稿"
+          ? "Draft"
           : idx === labels.length - 1 && labels.length >= 3
-            ? "综合定稿"
-            : "交叉评审";
-      return `${label}（${stage}）`;
+            ? "Final Synthesis"
+            : "Cross-Review";
+      return `${label} (${stage})`;
     })
     .join(" → ");
 }
@@ -2551,13 +2612,13 @@ function formatComposerHintText(
   const inline = extractComposerAtMentions(draft, members);
   const modeSuffix =
     workflowMode === "review"
-      ? " · 评审流（初稿 → 评审 → 定稿）"
+      ? " · Review flow (Draft → Review → Final)"
       : workflowMode === "a2a_relay"
-        ? ` · A2A接力（最多 ${maxRelayHops} 跳）`
+        ? ` · A2A relay (up to ${maxRelayHops} hops)`
         : "";
   if (inline.hasMention) {
     if (inline.isAll) {
-      return `检测到 @全体成员：将按排队限流向全员转发${modeSuffix}`;
+      return `Detected @all: forwarding to all members with rate-limited queue${modeSuffix}`;
     }
     const inlineCats = new Set(
       inline.targets
@@ -2568,18 +2629,18 @@ function formatComposerHintText(
     if (workflowMode === "review") {
       const reviewLabels = [
         ...inline.labels.map((l) => `@${l}`),
-        ...extraAuto.map((c) => `${c.label}(自动)`),
+        ...extraAuto.map((c) => `${c.label} (Auto)`),
       ];
       if (reviewLabels.length >= 2) {
-        return `检测到正文 @，评审流顺序：${formatReviewStageChain(reviewLabels)}`;
+        return `Detected @ mention, review order: ${formatReviewStageChain(reviewLabels)}`;
       }
     }
     if (extraAuto.length > 0) {
-      return `检测到正文 @${inline.labels.join("、@")}：将同时转发给 ${extraAuto
-        .map((c) => `${c.label}(自动选号)`)
-        .join("、")}${modeSuffix}`;
+      return `Detected @${inline.labels.join(", @")}: also forwarding to ${extraAuto
+        .map((c) => `${c.label} (Auto-pick)`)
+        .join(", ")}${modeSuffix}`;
     }
-    return `检测到正文 @${inline.labels.join("、@")}：将仅转发给被提及成员${modeSuffix}`;
+    return `Detected @${inline.labels.join(", @")}: forwarding only to mentioned members${modeSuffix}`;
   }
   const hasExplicit = selectedTargets.length > 0;
   const hasAuto = selectedAutoChannels.length > 0;
@@ -2591,20 +2652,20 @@ function formatComposerHintText(
       );
     }
     for (const ac of selectedAutoChannels) {
-      parts.push(`${ac.label}(自动按额度选号)`);
+      parts.push(`${ac.label} (Auto by quota)`);
     }
     if (workflowMode === "review" && parts.length >= 2) {
-      return `评审流顺序：${formatReviewStageChain(parts)}`;
+      return `Review order: ${formatReviewStageChain(parts)}`;
     }
-    return `仅向 ${parts.join("、")} 发送${modeSuffix}`;
+    return `Sending only to ${parts.join(", ")}${modeSuffix}`;
   }
   if (workflowMode === "review") {
-    return "评审流模式：按成员顺序串行执行（初稿 → 交叉评审 → 综合定稿）；按顺序点选上方成员或在正文按顺序 @ 可自定义先后顺序";
+    return "Review mode: runs members sequentially (Draft → Cross-Review → Final); click chips above or type @mentions in order to set sequence";
   }
   if (workflowMode === "a2a_relay") {
-    return `A2A 接力模式：成员回复正文包含 @成员 将自动触发下一跳（上限 ${maxRelayHops} 跳）`;
+    return `A2A relay mode: @mentions inside member replies automatically trigger the next hop (up to ${maxRelayHops} hops)`;
   }
-  return "向全体成员发送（输入 @ 可点名，Enter 发送，Shift+Enter 换行）";
+  return "Send to all members (type @ to mention, Enter to send, Shift+Enter for newline)";
 }
 
 function renderGroupMiddleContent(state: ManagerSnapshot, provider: ProviderInfo): string {
@@ -2612,7 +2673,7 @@ function renderGroupMiddleContent(state: ManagerSnapshot, provider: ProviderInfo
     ? `
       <div class="notice-bar">
         <span>${escapeHtml(state.notice)}</span>
-        <button id="dismiss-notice-btn" class="notice-close" type="button" title="关闭提示">✕</button>
+        <button id="dismiss-notice-btn" class="notice-close" type="button" title="Dismiss notice">✕</button>
       </div>
     `
     : "";
@@ -2624,8 +2685,8 @@ function renderGroupMiddleContent(state: ManagerSnapshot, provider: ProviderInfo
       ? `
         <div class="empty-list">
           <div class="empty-icon-circle">${ICON_GROUP}</div>
-          <div>暂无群聊</div>
-          <div>点击右上角「+ 创建群聊」，可混编网页账号与 API / CLI 成员协同对话</div>
+          <div>No group chats yet</div>
+          <div>Click "+ New Group" in the top right to mix web accounts and API / CLI members</div>
         </div>
       `
       : state.groupChats
@@ -2641,15 +2702,15 @@ function renderGroupMiddleContent(state: ManagerSnapshot, provider: ProviderInfo
               : "";
             const preview = lastMsg
               ? lastMsg.status === "needs_auth"
-                ? `[待授权] ${lastSenderName}`
+                ? `[Auth needed] ${lastSenderName}`
                 : lastMsg.role === "user"
-                  ? `我: ${lastMsg.content}`
+                  ? `Me: ${lastMsg.content}`
                   : lastMsg.status === "queued"
-                    ? `${lastSenderName}: 排队等待回复…`
+                    ? `${lastSenderName}: Queued for reply…`
                     : lastMsg.content
                       ? `${lastSenderName}: ${lastMsg.content}`
-                      : `${lastSenderName} 正在回复…`
-              : `${g.members.length} 位成员 · 点击开始群聊`;
+                      : `${lastSenderName} is replying…`
+              : `${g.members.length} members · Click to start chat`;
 
             const avatarStack = g.members
               .slice(0, 3)
@@ -2658,7 +2719,7 @@ function renderGroupMiddleContent(state: ManagerSnapshot, provider: ProviderInfo
                 return renderMemberAvatarNode(
                   state,
                   meta.acc,
-                  meta.alias || "成员",
+                  meta.alias || "Member",
                   "group-mini-avatar",
                   meta.ext?.kind
                 );
@@ -2668,19 +2729,19 @@ function renderGroupMiddleContent(state: ManagerSnapshot, provider: ProviderInfo
             return `
               <div class="group-row ${active ? "active" : ""}" data-select-group-id="${escapeHtml(g.id)}">
                 <div class="group-avatar-stack">
-                  ${avatarStack || `<div class="avatar custom group-mini-avatar">群</div>`}
+                  ${avatarStack || `<div class="avatar custom group-mini-avatar">G</div>`}
                 </div>
                 <div class="group-row-meta">
                   <div class="group-row-top">
                     <span class="account-alias">${escapeHtml(g.name)}</span>
-                    <span class="group-count-pill">${g.members.length}人</span>
-                    ${hasNeedsAuth ? `<span class="quota-warning-badge low">待授权</span>` : isStreaming ? `<span class="loading-status-badge">回复中</span>` : ""}
+                    <span class="group-count-pill">${g.members.length} members</span>
+                    ${hasNeedsAuth ? `<span class="quota-warning-badge low">Auth needed</span>` : isStreaming ? `<span class="loading-status-badge">Replying</span>` : ""}
                   </div>
                   <div class="group-row-preview">${escapeHtml(preview)}</div>
                 </div>
                 <div class="row-ops">
-                  <button class="action-icon-btn" data-edit-group-id="${escapeHtml(g.id)}" title="编辑群成员与名称" type="button">${ICON_EDIT}</button>
-                  <button class="action-icon-btn danger" data-delete-group-id="${escapeHtml(g.id)}" title="删除群聊" type="button">${ICON_TRASH}</button>
+                  <button class="action-icon-btn" data-edit-group-id="${escapeHtml(g.id)}" title="Edit members and group name" type="button">${ICON_EDIT}</button>
+                  <button class="action-icon-btn danger" data-delete-group-id="${escapeHtml(g.id)}" title="Delete group chat" type="button">${ICON_TRASH}</button>
                 </div>
               </div>
             `;
@@ -2690,12 +2751,12 @@ function renderGroupMiddleContent(state: ManagerSnapshot, provider: ProviderInfo
   return `
     <div class="column-header">
       <div class="provider-title-wrap">
-        <span class="provider-title">多账号群聊</span>
+        <span class="provider-title">Group Chat</span>
         ${state.groupChats.length > 0 ? `<span class="count-badge">${state.groupChats.length}</span>` : ""}
       </div>
       <div class="header-actions">
-        <button id="manage-external-agents-btn" class="icon-btn ext-header-btn" type="button" title="管理直连 OpenAI API 与本地 CLI 成员">API/CLI${extCount > 0 ? ` (${extCount})` : ""}</button>
-        <button id="create-group-btn" class="icon-btn primary" type="button">+ 创建群聊</button>
+        <button id="manage-external-agents-btn" class="icon-btn ext-header-btn" type="button" title="Manage direct OpenAI API & local CLI members">API/CLI${extCount > 0 ? ` (${extCount})` : ""}</button>
+        <button id="create-group-btn" class="icon-btn primary" type="button">+ New Group</button>
       </div>
     </div>
     ${noticeHtml}
@@ -2738,10 +2799,10 @@ function renderGroupRightStage(state: ManagerSnapshot): string {
       <main class="right-placeholder">
         <div class="stage-card">
           <div class="stage-logo-tile group-stage-icon">${ICON_GROUP}</div>
-          <div class="placeholder-title">创建你的跨服务 AI 群聊</div>
-          <div class="placeholder-desc">支持 Muse / Hark 网页账号与 OpenAI API / 本地 CLI 混编入群，内置并行、评审流、A2A 接力与独立会话绑定。</div>
+          <div class="placeholder-title">Create Your Cross-Provider AI Group Chat</div>
+          <div class="placeholder-desc">Mix Muse / Hark web accounts with OpenAI API / local CLI agents, with Parallel, Review Flow, A2A Relay, and dedicated thread binding.</div>
           <div class="stage-card-actions">
-            <button id="stage-create-group-btn" class="btn primary" type="button">+ 创建群聊</button>
+            <button id="stage-create-group-btn" class="btn primary" type="button">+ New Group</button>
           </div>
         </div>
       </main>
@@ -2829,8 +2890,8 @@ function renderGroupRightStage(state: ManagerSnapshot): string {
     activeGroup.messages.length === 0
       ? `
         <div class="group-empty-chat">
-          <div class="group-empty-title">群聊已就绪</div>
-          <div class="group-empty-desc">可在下方切换「并行」「评审流」或「A2A 接力」协作模式；输入 @ 可模糊点名，网页成员将自动绑定独立专属会话。</div>
+          <div class="group-empty-title">Group Chat Ready</div>
+          <div class="group-empty-desc">Switch between Parallel, Review Flow, or A2A Relay below; type @ to fuzzy-mention members. Web accounts bind automatically to dedicated threads.</div>
         </div>
       `
       : activeGroup.messages
@@ -2851,9 +2912,9 @@ function renderGroupRightStage(state: ManagerSnapshot): string {
                   <div class="group-bubble user">
                     ${targetSummary}
                     <div class="group-msg-text">${renderMessageTextWithMentions(msg.content, memberAliases)}</div>
-                    <div class="group-msg-foot">${formatShortTime(msg.createdAtMs)} · 已转发</div>
+                    <div class="group-msg-foot">${formatShortTime(msg.createdAtMs)} · Forwarded</div>
                     <div class="group-save-ctx-wrap">
-                      <button class="group-pin-icon-btn" data-pin-msg-id="${escapeHtml(msg.id)}" data-tooltip="沉淀到共享上下文" aria-label="沉淀到共享上下文" type="button">${ICON_PIN}</button>
+                      <button class="group-pin-icon-btn" data-pin-msg-id="${escapeHtml(msg.id)}" data-tooltip="Save to shared context" aria-label="Save to shared context" type="button">${ICON_PIN}</button>
                     </div>
                   </div>
                 </div>
@@ -2870,15 +2931,15 @@ function renderGroupRightStage(state: ManagerSnapshot): string {
               : "";
             const statusPill =
               msg.status === "queued"
-                ? `<span class="group-status-pill queued">排队中…</span>`
+                ? `<span class="group-status-pill queued">Queued…</span>`
                 : msg.status === "sending"
-                  ? `<span class="group-status-pill sending">投递中…</span>`
+                  ? `<span class="group-status-pill sending">Sending…</span>`
                   : msg.status === "streaming"
-                    ? `<span class="group-status-pill streaming">回复中…</span>`
+                    ? `<span class="group-status-pill streaming">Replying…</span>`
                     : msg.status === "needs_auth"
-                      ? `<span class="group-status-pill warn">待授权确认</span>`
+                      ? `<span class="group-status-pill warn">Auth pending</span>`
                       : msg.status === "error"
-                        ? `<span class="group-status-pill err">未完成</span>`
+                        ? `<span class="group-status-pill err">Incomplete</span>`
                         : "";
             const stagePill = msg.stageLabel
               ? `<span class="group-stage-pill">${escapeHtml(msg.stageLabel)}</span>`
@@ -2887,9 +2948,9 @@ function renderGroupRightStage(state: ManagerSnapshot): string {
             const bodyContent = msg.content.trim()
               ? `<div class="group-msg-text">${renderMessageTextWithMentions(msg.content, memberAliases)}</div>`
               : msg.status === "queued"
-                ? `<div class="group-msg-pending">等待前序阶段或槽位释放后唤醒…</div>`
+                ? `<div class="group-msg-pending">Waiting for previous stage or an available slot…</div>`
                 : msg.status === "sending" || msg.status === "streaming"
-                  ? `<div class="group-msg-pending">${meta?.isExternal ? "正在直连执行并流式接收回复…" : "正在该账号原生对话中生成回复…"}</div>`
+                  ? `<div class="group-msg-pending">${meta?.isExternal ? "Executing direct connection and streaming reply…" : "Generating reply in native account conversation…"}</div>`
                   : "";
 
             const canSyncReply = Boolean(
@@ -2901,10 +2962,10 @@ function renderGroupRightStage(state: ManagerSnapshot): string {
             );
             const isSyncing = syncingMsgIds.has(msg.id);
             const syncBtnHtml = canSyncReply
-              ? `<button class="group-pin-icon-btn ${isSyncing ? "is-spinning" : ""}" data-sync-msg-id="${escapeHtml(msg.id)}" data-tooltip="同步最新回复（不重发）" aria-label="同步最新回复" type="button" ${isSyncing ? "disabled" : ""}>${ICON_REFRESH}</button>`
+              ? `<button class="group-pin-icon-btn ${isSyncing ? "is-spinning" : ""}" data-sync-msg-id="${escapeHtml(msg.id)}" data-tooltip="Sync latest reply (no resend)" aria-label="Sync latest reply" type="button" ${isSyncing ? "disabled" : ""}>${ICON_REFRESH}</button>`
               : "";
             const pinBtnHtml = msg.content.trim()
-              ? `<button class="group-pin-icon-btn" data-pin-msg-id="${escapeHtml(msg.id)}" data-tooltip="沉淀到共享上下文" aria-label="沉淀到共享上下文" type="button">${ICON_PIN}</button>`
+              ? `<button class="group-pin-icon-btn" data-pin-msg-id="${escapeHtml(msg.id)}" data-tooltip="Save to shared context" aria-label="Save to shared context" type="button">${ICON_PIN}</button>`
               : "";
             const pinHoverAction =
               syncBtnHtml || pinBtnHtml
@@ -2915,11 +2976,11 @@ function renderGroupRightStage(state: ManagerSnapshot): string {
               msg.status === "needs_auth"
                 ? `
                   <div class="group-auth-card">
-                    <span>${escapeHtml(msg.error || "检测到安全授权弹窗，请切到该账号确认后重试")}</span>
+                    <span>${escapeHtml(msg.error || "Security authorization dialog detected. Switch to this account to confirm, then retry.")}</span>
                     <div class="group-error-ops">
-                      <button class="mini-btn primary-text" data-retry-msg-id="${escapeHtml(msg.id)}" type="button">重试</button>
-                      ${canSyncReply ? `<button class="mini-btn" data-sync-msg-id="${escapeHtml(msg.id)}" type="button" ${isSyncing ? "disabled" : ""}>${isSyncing ? "同步中…" : "同步回复"}</button>` : ""}
-                      ${senderKey ? `<button class="mini-btn warn-btn" type="button" ${jumpAttrs}>前往该账号授权 →</button>` : ""}
+                      <button class="mini-btn primary-text" data-retry-msg-id="${escapeHtml(msg.id)}" type="button">Retry</button>
+                      ${canSyncReply ? `<button class="mini-btn" data-sync-msg-id="${escapeHtml(msg.id)}" type="button" ${isSyncing ? "disabled" : ""}>${isSyncing ? "Syncing…" : "Sync Reply"}</button>` : ""}
+                      ${senderKey ? `<button class="mini-btn warn-btn" type="button" ${jumpAttrs}>Authorize Account →</button>` : ""}
                     </div>
                   </div>
                 `
@@ -2928,9 +2989,9 @@ function renderGroupRightStage(state: ManagerSnapshot): string {
                     <div class="group-error-box">
                       <span>${escapeHtml(msg.error)}</span>
                       <div class="group-error-ops">
-                        <button class="mini-btn primary-text" data-retry-msg-id="${escapeHtml(msg.id)}" type="button">重试</button>
-                        ${canSyncReply ? `<button class="mini-btn" data-sync-msg-id="${escapeHtml(msg.id)}" type="button" ${isSyncing ? "disabled" : ""}>${isSyncing ? "同步中…" : "同步回复"}</button>` : ""}
-                        ${senderKey ? `<button class="mini-btn" type="button" ${jumpAttrs}>${meta?.isExternal ? "检查配置" : "前往查看"}</button>` : ""}
+                        <button class="mini-btn primary-text" data-retry-msg-id="${escapeHtml(msg.id)}" type="button">Retry</button>
+                        ${canSyncReply ? `<button class="mini-btn" data-sync-msg-id="${escapeHtml(msg.id)}" type="button" ${isSyncing ? "disabled" : ""}>${isSyncing ? "Syncing…" : "Sync Reply"}</button>` : ""}
+                        ${senderKey ? `<button class="mini-btn" type="button" ${jumpAttrs}>${meta?.isExternal ? "Check Config" : "Inspect"}</button>` : ""}
                       </div>
                     </div>
                   `
@@ -2938,14 +2999,14 @@ function renderGroupRightStage(state: ManagerSnapshot): string {
 
             return `
               <div class="group-msg assistant">
-                <button class="group-msg-avatar-btn" type="button" title="${meta?.isExternal ? `点击编辑「${escapeHtml(senderDisplayName)}」配置` : `点击切换到「${escapeHtml(senderDisplayName)}」原生会话页`}" ${jumpAttrs}>
+                <button class="group-msg-avatar-btn" type="button" title="${meta?.isExternal ? `Click to edit "${escapeHtml(senderDisplayName)}" settings` : `Click to switch to "${escapeHtml(senderDisplayName)}" native conversation`}" ${jumpAttrs}>
                   ${renderMemberAvatarNode(state, meta?.acc, senderDisplayName, "", meta?.ext?.kind)}
                 </button>
                 <div class="group-msg-col">
                   <div class="group-msg-head">
                     <span class="group-msg-name">${escapeHtml(senderDisplayName)}</span>
                     ${meta ? `<span class="group-provider-tag">${escapeHtml(meta.providerShort)}</span>` : ""}
-                    ${msg.autoRoutedChannel ? `<span class="group-auto-pill" title="由渠道按剩余额度自动选号">自动选号</span>` : ""}
+                    ${msg.autoRoutedChannel ? `<span class="group-auto-pill" title="Auto-selected by remaining quota">Auto-picked</span>` : ""}
                     ${stagePill}
                     <span class="group-msg-time">${formatShortTime(msg.createdAtMs)}</span>
                     ${statusPill}
@@ -2967,7 +3028,7 @@ function renderGroupRightStage(state: ManagerSnapshot): string {
         <div class="group-header-main">
           <div class="group-header-title-row">
             <h2 class="group-chat-title">${escapeHtml(activeGroup.name)}</h2>
-            <span class="count-badge">${activeGroup.members.length} 位成员</span>
+            <span class="count-badge">${activeGroup.members.length} members</span>
           </div>
           <div class="group-member-bar">
             ${groupByMemberCategory(state, memberEntries)
@@ -2981,10 +3042,10 @@ function renderGroupRightStage(state: ManagerSnapshot): string {
                           ? `data-open-ext-agent-id="${escapeHtml(m.key.uuid)}"`
                           : `data-jump-provider="${escapeHtml(m.key.providerId)}" data-jump-uuid="${escapeHtml(m.key.uuid)}"`;
                         const chipTitle = m.isExternal
-                          ? `点击编辑「${escapeHtml(m.alias)}」直连配置`
+                          ? `Click to edit "${escapeHtml(m.alias)}" direct settings`
                           : m.hasBinding
-                            ? `已绑定群专属会话 · 点击进入「${escapeHtml(m.alias)}」(${escapeHtml(cat.label)}) 页面`
-                            : `点击进入「${escapeHtml(m.alias)}」(${escapeHtml(cat.label)}) 原生会话页`;
+                            ? `Bound to dedicated group thread · Click to open "${escapeHtml(m.alias)}" (${escapeHtml(cat.label)})`
+                            : `Click to open "${escapeHtml(m.alias)}" (${escapeHtml(cat.label)}) native conversation`;
                         return `
                           <button
                             class="group-member-chip ${m.isNeedsAuth ? "warn" : m.isBusy ? "busy" : m.loggedOut ? "offline" : m.warm ? "warm" : ""}"
@@ -2994,7 +3055,7 @@ function renderGroupRightStage(state: ManagerSnapshot): string {
                           >
                             <span class="group-chip-dot"></span>
                             <span>${escapeHtml(m.alias)}</span>
-                            ${m.hasBinding ? `<span class="group-chip-provider">会话</span>` : ""}
+                            ${m.hasBinding ? `<span class="group-chip-provider">Thread</span>` : ""}
                           </button>
                         `;
                       })
@@ -3009,18 +3070,18 @@ function renderGroupRightStage(state: ManagerSnapshot): string {
           ${newTopicConfirmGroupId === activeGroup.id
             ? `
               <div class="new-topic-confirm">
-                <span class="new-topic-confirm-label">开启新话题：</span>
-                <button id="group-new-topic-keep-btn" class="btn primary" type="button" title="清空记录并让网页成员各自新开对话，保留共享上下文与技能">保留共享上下文</button>
-                <button id="group-new-topic-clean-btn" class="btn" type="button" title="清空记录、共享上下文，网页成员各自新开对话（技能与角色保留）">全部清空</button>
-                <button id="group-new-topic-cancel-btn" class="btn" type="button">取消</button>
+                <span class="new-topic-confirm-label">Start new topic:</span>
+                <button id="group-new-topic-keep-btn" class="btn primary" type="button" title="Clear messages and open fresh threads for web members while keeping shared context and skills">Keep Shared Context</button>
+                <button id="group-new-topic-clean-btn" class="btn" type="button" title="Clear messages and shared context, and open fresh threads for web members (keeps skills and roles)">Clear All</button>
+                <button id="group-new-topic-cancel-btn" class="btn" type="button">Cancel</button>
               </div>
             `
             : `
-          <button id="group-new-topic-btn" class="btn" type="button" title="清空记录并让所有网页成员新开原生对话，开始一个干净的话题">新话题</button>
-          ${canPinRound ? `<button id="group-pin-round-btn" class="btn knowledge-btn" type="button" title="将最近一轮各成员完成回复浓缩追加至共享上下文">${ICON_PIN}<span>沉淀本轮结论</span></button>` : ""}
-          <button id="group-knowledge-btn" class="btn knowledge-btn" type="button">共享上下文 &amp; 技能${knowledgeCount > 0 ? `<span class="count-badge">${knowledgeCount}</span>` : ""}</button>
-          <button id="group-edit-members-btn" class="btn" type="button">编辑成员</button>
-          <button id="group-clear-msgs-btn" class="btn" type="button" ${activeGroup.messages.length === 0 ? "disabled" : ""}>清空记录</button>
+          <button id="group-new-topic-btn" class="btn" type="button" title="Clear messages and open fresh native threads for all web members">New Topic</button>
+          ${canPinRound ? `<button id="group-pin-round-btn" class="btn knowledge-btn" type="button" title="Summarize completed replies from the latest round into shared context">${ICON_PIN}<span>Save Round Summary</span></button>` : ""}
+          <button id="group-knowledge-btn" class="btn knowledge-btn" type="button">Shared Context &amp; Skills${knowledgeCount > 0 ? `<span class="count-badge">${knowledgeCount}</span>` : ""}</button>
+          <button id="group-edit-members-btn" class="btn" type="button">Edit Members</button>
+          <button id="group-clear-msgs-btn" class="btn" type="button" ${activeGroup.messages.length === 0 ? "disabled" : ""}>Clear History</button>
             `}
         </div>
       </div>
@@ -3028,22 +3089,22 @@ function renderGroupRightStage(state: ManagerSnapshot): string {
       <div class="group-composer">
         <div class="group-workflow-bar">
           <div class="workflow-mode-group">
-            <span class="workflow-label">模式</span>
-            <button class="workflow-mode-btn ${workflowMode === "parallel" ? "active" : ""}" data-workflow-mode="parallel" type="button">并行</button>
-            <button class="workflow-mode-btn ${workflowMode === "review" ? "active" : ""}" data-workflow-mode="review" type="button">评审流</button>
-            <button class="workflow-mode-btn ${workflowMode === "a2a_relay" ? "active" : ""}" data-workflow-mode="a2a_relay" type="button">A2A接力</button>
+            <span class="workflow-label">Mode</span>
+            <button class="workflow-mode-btn ${workflowMode === "parallel" ? "active" : ""}" data-workflow-mode="parallel" type="button">Parallel</button>
+            <button class="workflow-mode-btn ${workflowMode === "review" ? "active" : ""}" data-workflow-mode="review" type="button">Review Flow</button>
+            <button class="workflow-mode-btn ${workflowMode === "a2a_relay" ? "active" : ""}" data-workflow-mode="a2a_relay" type="button">A2A Relay</button>
           </div>
           ${workflowMode === "a2a_relay" ? `
             <div class="workflow-hops-group">
-              <span class="workflow-label">接力上限</span>
-              <button class="workflow-hop-btn ${maxRelayHops === 1 ? "active" : ""}" data-relay-hops="1" type="button">1跳</button>
-              <button class="workflow-hop-btn ${maxRelayHops === 2 ? "active" : ""}" data-relay-hops="2" type="button">2跳</button>
-              <button class="workflow-hop-btn ${maxRelayHops === 3 ? "active" : ""}" data-relay-hops="3" type="button">3跳</button>
+              <span class="workflow-label">Relay Limit</span>
+              <button class="workflow-hop-btn ${maxRelayHops === 1 ? "active" : ""}" data-relay-hops="1" type="button">1 hop</button>
+              <button class="workflow-hop-btn ${maxRelayHops === 2 ? "active" : ""}" data-relay-hops="2" type="button">2 hops</button>
+              <button class="workflow-hop-btn ${maxRelayHops === 3 ? "active" : ""}" data-relay-hops="3" type="button">3 hops</button>
             </div>
           ` : ""}
         </div>
         <div class="group-target-chips grouped">
-          <button class="group-target-chip ${selectedTargets.length === 0 && selectedAutoIds.length === 0 ? "active" : ""}" data-group-target="all" type="button">全体成员</button>
+          <button class="group-target-chip ${selectedTargets.length === 0 && selectedAutoIds.length === 0 ? "active" : ""}" data-group-target="all" type="button">All Members</button>
           ${targetCategories
             .map((cat) => {
               const allCatSelected =
@@ -3055,16 +3116,16 @@ function renderGroupRightStage(state: ManagerSnapshot): string {
                   ? `<button
                       class="group-target-chip target-auto-chip ${isAutoActive ? "active" : ""}"
                       data-group-target-auto="${escapeHtml(cat.id)}"
-                      title="${escapeHtml(cat.label)} 按剩余额度自动轮换选号（与该类具体 @ 互斥）"
+                      title="Auto-rotate ${escapeHtml(cat.label)} accounts by remaining quota (mutually exclusive with explicit @mentions in this provider)"
                       type="button"
-                    >自动</button>`
+                    >Auto</button>`
                   : "";
               return `
                 <div class="target-category-group">
                   <button
                     class="target-category-badge ${allCatSelected || isAutoActive ? "active" : ""}"
                     data-group-target-cat="${escapeHtml(cat.id)}"
-                    title="${escapeHtml(cat.label)} · 点击全选或取消该类全部成员"
+                    title="${escapeHtml(cat.label)} · Click to toggle all members in this category"
                     aria-label="${escapeHtml(cat.label)}"
                     type="button"
                   >${renderCategoryIcon(state, cat)}</button>
@@ -3105,9 +3166,9 @@ function renderGroupRightStage(state: ManagerSnapshot): string {
               class="group-chat-input"
               rows="2"
               maxlength="4000"
-              placeholder="输入消息，输入 @ 可唤起成员点名（Enter 发送，Shift+Enter 换行）"
+              placeholder="Type a message, use @ to mention members (Enter to send, Shift+Enter for newline)"
             >${escapeHtml(draftVal)}</textarea>
-            <button id="group-send-btn" class="btn primary group-send-btn" type="button" ${groupSending ? "disabled" : ""}>${groupSending ? "发送中…" : "发送"}</button>
+            <button id="group-send-btn" class="btn primary group-send-btn" type="button" ${groupSending ? "disabled" : ""}>${groupSending ? "Sending…" : "Send"}</button>
           </div>
         </div>
       </div>
@@ -3122,1030 +3183,514 @@ let maamLanguage: MaamLanguage = (() => {
   try { const v = localStorage.getItem(MAAM_LANG_KEY); return v === "id" || v === "zh" || v === "en" ? v : "en"; }
   catch { return "en"; }
 })();
-const MAAM_TRANSLATIONS: Record<string, Record<string, string>> = {
-  "zh": {},
-  "id": {
-    "群聊": "Obrolan grup",
-    "同步": "Sinkronisasi",
-    "设置": "Pengaturan",
-    "更新": "Pembaruan",
-    "新版本": "Versi baru",
-    "待接入": "Segera hadir",
-    "检查更新": "Periksa pembaruan",
-    "托盘常驻与全局快捷键设置": "Pengaturan tray dan pintasan global",
-    "跨设备多端加密同步": "Sinkronisasi terenkripsi lintas perangkat",
-    "多账号群聊（桌面端）": "Obrolan grup multi-akun (desktop)",
-    "发送": "Kirim",
-    "发送中…": "Mengirim…",
-    "添加账号": "Tambah akun",
-    "添加": "Tambah",
-    "取消": "Batal",
-    "保存": "Simpan",
-    "删除": "Hapus",
-    "重命名": "Ubah nama",
-    "账号": "Akun",
-    "代理": "Proxy",
-    "时区": "Zona waktu",
-    "跟随系统": "Ikuti Sistem",
-    "纽约": "New York",
-    "洛杉矶": "Los Angeles",
-    "伦敦": "London",
-    "东京": "Tokyo",
-    "新加坡": "Singapura",
-    "上海": "Shanghai",
+const MAAM_TRANSLATIONS: Record<Exclude<MaamLanguage, "en">, Record<string, string>> = {
+  "zh": {
+    "Group Chat": "群聊",
+    "Sync": "同步",
+    "Settings": "设置",
+    "Update": "更新",
+    "New Ver": "新版本",
+    "New Version": "新版本",
+    "Coming Soon": "待接入",
+    "Check for Updates": "检查更新",
+    "Tray & Global Shortcut Settings": "托盘常驻与全局快捷键设置",
+    "Cross-Device Encrypted Sync": "跨设备多端加密同步",
+    "Multi-Account Group Chat (Desktop)": "多账号群聊（桌面端）",
+    "Send": "发送",
+    "Sending…": "发送中…",
+    "Add Account": "添加账号",
+    "Add": "添加",
+    "Cancel": "取消",
+    "Save": "保存",
+    "Delete": "删除",
+    "Rename": "重命名",
+    "Accounts": "账号",
+    "Proxy": "代理",
+    "Time Zone": "时区",
+    "Time zone": "时区",
+    "Follow System": "跟随系统",
+    "New York": "纽约",
+    "Los Angeles": "洛杉矶",
+    "London": "伦敦",
+    "Tokyo": "东京",
+    "Singapore": "新加坡",
+    "Shanghai": "上海",
     "UTC": "UTC",
-    "深色": "Gelap",
-    "浅色": "Terang",
-    "跟随": "Ikuti sistem",
-    "外观主题": "Tampilan",
-    "主题": "Tema",
-    "常规": "Umum",
-    "确认": "Konfirmasi",
-    "关闭": "Tutup",
-    "导入": "Impor",
-    "导出": "Ekspor",
-    "刷新": "Muat ulang",
-    "正在加载…": "Memuat…",
-    "加载失败": "Gagal memuat",
-    "已登录": "Sudah login",
-    "未登录": "Belum login",
-    "登录": "Login",
-    "账号管理": "Manajemen akun",
-    "语言": "Bahasa",
+    "Dark": "深色",
+    "Light": "浅色",
+    "System": "跟随",
+    "Appearance": "外观主题",
+    "Theme": "主题",
+    "General": "常规",
+    "Confirm": "确认",
+    "Close": "关闭",
+    "Import": "导入",
+    "Export": "导出",
+    "Refresh": "刷新",
+    "Loading…": "正在加载…",
+    "Load Failed": "加载失败",
+    "Signed in": "已登录",
+    "Signed out": "未登录",
+    "Sign in": "登录",
+    "Account Manager": "账号管理",
+    "Language": "语言",
     "English": "English",
     "Bahasa Indonesia": "Bahasa Indonesia",
-    "简体中文": "Bahasa Mandarin (Sederhana)",
-    "极致简洁中文": "Bahasa Indonesia yang ringkas",
-    "架构与风险评审": "Tinjauan Arsitektur dan Risiko",
-    "交叉事实核查": "Pemeriksaan Fakta Silang",
-    "从稳定性、边界情况、安全性和性能四个维度输出意见。": "Berikan masukan dari sisi stabilitas, kasus tepi, keamanan, dan kinerja.",
-    "分析技术方案时优先检查边界情况、并发竞争、权限安全与资源占用，明确指出取舍与潜在风险。": "Saat menganalisis solusi teknis, periksa kasus tepi, kondisi balapan, keamanan izin, dan penggunaan sumber daya. Jelaskan kompromi serta risikonya.",
-    "要求先指出前序发言或前提中的漏洞，再补充新结论。": "Tunjukkan kekurangan pada pernyataan atau asumsi sebelumnya sebelum menambahkan kesimpulan.",
-    "若共享上下文或前序成员发言存在矛盾、假设漏洞或遗漏，请先指出修正，再给出补充判断。": "Jika konteks bersama atau pernyataan anggota sebelumnya mengandung kontradiksi, asumsi keliru, atau kekurangan, koreksi terlebih dahulu sebelum memberi penilaian tambahan.",
-    "Ollama 本地": "Ollama Lokal",
-    "本地 CLI": "CLI Lokal",
-    "用尽": "Habis",
-    "偏低": "Rendah",
-    "耗尽": "Habis",
-    "日满": "Batas harian tercapai",
-    "月满": "Batas bulanan tercapai",
-    "用额外": "Gunakan kuota tambahan",
-    "重置": "Atur ulang",
-    "月": "Bulan",
-    "额外": "Tambahan",
-    "余 ": "Sisa ",
-    "额外额度": "Kuota tambahan",
-    "Cookie 已过期": "Cookie kedaluwarsa",
-    "仅本次会话有效": "Hanya berlaku untuk sesi ini",
-    "会话级 Cookie（关闭应用后可能需重新登录）": "Cookie tingkat sesi (mungkin perlu login ulang setelah aplikasi ditutup)",
-    "浏览器会话级 Cookie，未设置固定过期时间": "Cookie sesi browser tanpa waktu kedaluwarsa tetap",
-    "校验中": "Memverifikasi",
-    "正在替换": "Mengganti",
-    "完成": "Selesai",
-    "待授权": "Menunggu otorisasi",
-    "正在准备下载...": "Menyiapkan unduhan...",
-    "更新中...": "Memperbarui...",
-    "已授权，继续安装": "Diizinkan, lanjutkan instalasi",
-    "前往下载 IPA": "Unduh IPA",
-    "立即下载并更新": "Unduh dan perbarui sekarang",
-    "检查中...": "Memeriksa...",
-    "重新检查": "Periksa ulang",
-    "暂无可用成员，请先登录网页账号或添加 API / CLI 成员。": "Belum ada anggota tersedia. Login ke akun web atau tambahkan anggota API/CLI terlebih dahulu.",
-    "官网或自建 Cloudflare Worker 地址（https://...）": "Alamat situs resmi atau Cloudflare Worker sendiri (https://...)",
-    "上传密文中...": "Mengunggah data terenkripsi...",
-    "重新生成": "Buat ulang",
-    "生成随机加密中转码": "Buat kode relay terenkripsi acak",
-    "同步口令（留空自动生成 6 位数字 PIN）": "Kode sinkronisasi (kosongkan untuk membuat PIN 6 digit otomatis)",
-    "开启中...": "Mengaktifkan...",
-    "重新开启": "Aktifkan ulang",
-    "开启共享": "Aktifkan berbagi",
-    "中转通道": "Kanal relay",
-    "局域网地址": "Alamat LAN",
-    "端到端加密": "Enkripsi end-to-end",
-    "同步口令": "Kode sinkronisasi",
-    "销毁策略": "Kebijakan penghapusan",
-    "有效期": "Masa berlaku",
-    "后自动销毁": "Hapus otomatis setelahnya",
-    "立即销毁并停止": "Hapus dan hentikan sekarang",
-    "停止共享": "Hentikan berbagi",
-    "输入局域网地址或粘贴 maam-sync:// 同步串（支持局域网与中转码）": "Masukkan alamat LAN atau tempel string sinkronisasi maam-sync:// (mendukung LAN dan kode relay)",
-    "口令或二维码自动填入的端到端密钥片段": "Fragmen kunci end-to-end yang diisi otomatis oleh kode sandi atau QR",
-    "拉取中...": "Mengambil data...",
-    "拉取并合并": "Ambil dan gabungkan",
-    "设置加密口令（至少 4 位）": "Atur kata sandi enkripsi (minimal 4 karakter)",
-    "导出中...": "Mengekspor...",
-    "导出备份": "Ekspor cadangan",
-    "或直接在此粘贴 .maam 加密备份全文": "Atau tempel seluruh isi cadangan terenkripsi .maam di sini",
-    "输入备份时的解密口令": "Masukkan kata sandi dekripsi cadangan",
-    "导入中...": "Mengimpor...",
-    "解密并导入": "Dekripsi dan impor",
-    "默认": "Bawaan",
-    "禁用": "Nonaktifkan",
-    "快捷键已生效": "Pintasan aktif",
-    "未激活": "Tidak aktif",
-    "已禁用": "Dinonaktifkan",
-    "5 分钟": "5 menit",
-    "15 分钟": "15 menit",
-    "30 分钟": "30 menit",
-    "仅手动": "Hanya manual",
-    "已生效": "Aktif",
-    "注册失败": "Registrasi gagal",
-    "未启用": "Belum diaktifkan",
-    "CommandOrControl+Shift+M（留空禁用）": "CommandOrControl+Shift+M (kosongkan untuk menonaktifkan)",
-    "保存中...": "Menyimpan...",
-    "账号设置": "Pengaturan akun",
-    "备注名称（留空则自动获取登录邮箱）": "Nama tampilan (kosongkan untuk memakai email login)",
-    "备注名称（留空保留原备注）": "Nama tampilan (kosongkan untuk mempertahankan nama sebelumnya)",
-    "备注名称": "Nama tampilan",
-    "IANA 时区（例如 America/New_York、Asia/Tokyo）": "Zona waktu IANA (misalnya America/New_York, Asia/Tokyo)",
-    "通过 WebView2 原生接口按账号独立生效，留空则使用系统时区。": "Diterapkan per akun melalui API native WebView2. Kosongkan untuk memakai zona waktu sistem.",
-    "文档加载前注入该账号独立页面，支持夏令时，留空则使用系统时区。": "Disuntikkan ke halaman akun sebelum dokumen dimuat dan mendukung daylight saving time. Kosongkan untuk memakai zona waktu sistem.",
-    "导入 Cookie（可选，支持从 Chrome 等浏览器登录后粘贴）": "Impor Cookie (opsional, tempel setelah login melalui Chrome atau browser lain)",
-    "导入 Cookie（支持从 Chrome 等浏览器登录后粘贴）": "Impor Cookie (tempel setelah login melalui Chrome atau browser lain)",
-    "粘贴 Cookie 请求头（a=1; b=2）、Netscape cookies.txt 或浏览器导出的 JSON 数组...": "Tempel header Cookie (a=1; b=2), Netscape cookies.txt, atau array JSON hasil ekspor browser...",
-    "导入 Cookie": "Impor Cookie",
-    "确认清空？": "Yakin ingin menghapus semua?",
-    "清空登录缓存": "Hapus cache login",
-    "创建中...": "Membuat...",
-    "创建并打开": "Buat dan buka",
-    "创建群聊": "Buat obrolan grup",
-    "群聊名称（如：产品头脑风暴）": "Nama grup (misalnya: diskusi ide produk)",
-    "群聊名称": "Nama grup",
-    "例如：项目采用 Tauri + Rust + TypeScript；核心约束是低内存；当前正在排查…": "Contoh: proyek menggunakan Tauri + Rust + TypeScript; batasan utama adalah penggunaan memori rendah; masalah yang sedang diperiksa…",
-    "编辑共享技能": "Edit keahlian bersama",
-    "添加自定义技能": "Tambah keahlian khusus",
-    "技能名称（如：代码审查规范）": "Nama keahlian (misalnya: standar tinjauan kode)",
-    "简短说明（选填）": "Deskripsi singkat (opsional)",
-    "输入注入给各 AI 成员的技能指令原文…": "Masukkan instruksi keahlian yang akan diberikan kepada setiap anggota AI…",
-    "更新技能": "Perbarui keahlian",
-    "+ 添加技能": "+ Tambah keahlian",
-    "成员分工（如：前端性能优化与交互评审）": "Pembagian tugas anggota (misalnya: optimasi performa frontend dan tinjauan interaksi)",
-    "Base URL（例如 https://api.deepseek.com/v1 或 http://127.0.0.1:11434/v1）": "Base URL (misalnya https://api.deepseek.com/v1 atau http://127.0.0.1:11434/v1)",
-    "API Key（本机 Ollama 可留空）": "API Key (boleh dikosongkan untuk Ollama lokal)",
-    "模型名称（例如 gpt-4o / deepseek-chat / qwen2.5:14b）": "Nama model (misalnya gpt-4o / deepseek-chat / qwen2.5:14b)",
-    "CLI 命令（例如 claude / codex / gemini）": "Perintah CLI (misalnya claude / codex / gemini)",
-    "工作目录（选填，例如 /Users/name/project）": "Direktori kerja (opsional, misalnya /Users/name/project)",
-    "编辑成员": "Edit anggota",
-    "新增直连成员": "Tambah anggota koneksi langsung",
-    "群聊显示名称（如：Claude-Code / DeepSeek）": "Nama tampilan anggota grup (misalnya Claude-Code / DeepSeek)",
-    "更新成员": "Perbarui anggota",
-    "+ 保存成员": "+ Simpan anggota",
-    "多端加密同步": "Sinkronisasi terenkripsi multi-perangkat",
-    "切换到剩余可用额度最多的账号": "Beralih ke akun dengan kuota tersedia terbanyak",
-    "按剩余可用额度从高到低排序": "Urutkan berdasarkan sisa kuota dari tertinggi",
-    "登录已失效，点击进入重新登录": "Sesi login kedaluwarsa, klik untuk login ulang",
-    "登录已失效，请在右侧重新登录": "Sesi login kedaluwarsa, login ulang di panel kanan",
-    "尚未登录，点击前往登录": "Belum login, klik untuk masuk",
-    "登录已失效，点击重新登录": "Sesi login kedaluwarsa, klik untuk login ulang",
-    "登录后自动同步额度": "Sinkronkan kuota otomatis setelah login",
-    "正在同步额度明细…": "Menyinkronkan rincian kuota…",
-    "已登录账号": "Akun yang sudah login",
-    "上移": "Pindah ke atas",
-    "下移": "Pindah ke bawah",
-    "强制刷新页面": "Paksa muat ulang halaman",
-    "复制 Cookie": "Salin Cookie",
-    "从本机移除": "Hapus dari perangkat ini",
-    "关闭下载提示": "Tutup pemberitahuan unduhan",
-    "全体成员": "Semua anggota",
-    "所有人": "Semua orang",
-    "全体": "Semua",
-    "初稿": "Draf awal",
-    "综合定稿": "Final gabungan",
-    "交叉评审": "Tinjauan silang",
-    " · 评审流（初稿 → 评审 → 定稿）": " · Alur tinjauan (draf → tinjauan → final)",
-    "评审流模式：按成员顺序串行执行（初稿 → 交叉评审 → 综合定稿）；按顺序点选上方成员或在正文按顺序 @ 可自定义先后顺序": "Mode alur tinjauan: jalankan anggota secara berurutan (draf → tinjauan silang → final gabungan); pilih anggota di atas atau sebut dengan @ sesuai urutan yang diinginkan",
-    "向全体成员发送（输入 @ 可点名，Enter 发送，Shift+Enter 换行）": "Kirim ke semua anggota (ketik @ untuk menyebut anggota, Enter untuk mengirim, Shift+Enter untuk baris baru)",
-    "成员": "Anggota",
-    "编辑群成员与名称": "Edit anggota dan nama grup",
-    "删除群聊": "Hapus obrolan grup",
-    "管理直连 OpenAI API 与本地 CLI 成员": "Kelola anggota OpenAI API langsung dan CLI lokal",
-    "沉淀到共享上下文": "Simpan ke konteks bersama",
-    "同步最新回复（不重发）": "Sinkronkan balasan terbaru (tanpa mengirim ulang)",
-    "同步最新回复": "Sinkronkan balasan terbaru",
-    "检测到安全授权弹窗，请切到该账号确认后重试": "Dialog otorisasi keamanan terdeteksi. Buka akun tersebut, konfirmasi, lalu coba lagi",
-    "清空记录并让网页成员各自新开对话，保留共享上下文与技能": "Hapus riwayat dan mulai percakapan baru untuk setiap anggota web; pertahankan konteks bersama dan keahlian",
-    "清空记录、共享上下文，网页成员各自新开对话（技能与角色保留）": "Hapus riwayat dan konteks bersama, lalu mulai percakapan baru untuk setiap anggota web (keahlian dan peran tetap dipertahankan)",
-    "清空记录并让所有网页成员新开原生对话，开始一个干净的话题": "Hapus riwayat dan mulai percakapan native baru untuk semua anggota web",
-    "输入消息，输入 @ 可唤起成员点名（Enter 发送，Shift+Enter 换行）": "Ketik pesan; gunakan @ untuk menyebut anggota (Enter untuk mengirim, Shift+Enter untuk baris baru)",
-    "已有结论": "Sudah ada kesimpulan",
-    "向全部有效成员转发": "Teruskan ke semua anggota aktif",
-    "已复制同步串（可在另一台设备地址栏直接粘贴）": "String sinkronisasi disalin (tempel ke bilah alamat perangkat lain)",
-    "复制失败，请手动抄录地址与口令": "Gagal menyalin, catat alamat dan kode sandi secara manual",
-    "未识别到有效的同步二维码内容": "Konten QR sinkronisasi tidak valid atau tidak dikenali",
-    "已识别同步地址，请补充输入口令后点击「拉取并合并」": "Alamat sinkronisasi dikenali. Masukkan kode sandi lalu klik “Ambil dan gabungkan”",
-    "已复制密文备份内容": "Konten cadangan terenkripsi disalin",
-    "复制失败，请点击保存 .maam 文件": "Gagal menyalin, klik untuk menyimpan file .maam",
-    "暂无可用在线账号，请先登录或等待同步": "Belum ada akun online. Login atau tunggu sinkronisasi",
-    "当前账号已是可用余量最多的账号": "Akun ini sudah memiliki sisa kuota terbanyak",
-    "当前已是按可用余量降序排列": "Sudah diurutkan berdasarkan sisa kuota",
-    "复制中…": "Menyalin…",
-    "已复制 Cookie": "Cookie disalin",
-    "请先粘贴要导入的 Cookie 内容": "Tempel konten Cookie yang ingin diimpor terlebih dahulu",
-    "单个群聊最多支持 30 个成员": "Setiap grup mendukung maksimal 30 anggota",
-    "请填写技能名称": "Masukkan nama keahlian",
-    "请填写技能指令内容": "Masukkan instruksi keahlian",
-    "单个群聊最多支持 30 个共享技能": "Setiap grup mendukung maksimal 30 keahlian bersama",
-    "[用户]": "[Pengguna]",
-    "叠号 · AI 助手账号切换器": "Duohao · Pengalih Akun AI",
-    "正在识别并同步...": "Mengenali dan menyinkronkan...",
-    "扫码直接同步": "Pindai QR untuk sinkronisasi",
-    "命令参数，空格分隔（例如 -p 或 exec {prompt}；无 {prompt} 时走 stdin）": "Parameter perintah dipisahkan spasi (misalnya -p atau exec {prompt}; jika tanpa {prompt}, input dikirim melalui stdin).",
-    "刷新已就绪账号额度": "Perbarui kuota akun yang siap",
-    "中文（简体）": "Bahasa Mandarin (Sederhana)",
-    "正在连接 GitHub Releases 检查版本信息...": "Menghubungkan ke GitHub Releases untuk memeriksa informasi versi...",
-    "当前发布尚未包含本平台自动安装包，请点击「发布页」手动下载。": "Rilis ini belum menyertakan installer otomatis untuk platform ini. Klik “Halaman rilis” untuk mengunduh secara manual.",
-    "已读取文件：": "File telah dibaca:",
-    "在任意应用中按下快捷键即可显示或隐藏主窗口；托盘菜单可完全退出。": "Tekan pintasan di aplikasi mana pun untuk menampilkan atau menyembunyikan jendela utama. Gunakan menu tray untuk keluar sepenuhnya.",
-    "HTTP CONNECT 代理（留空使用系统网络）": "Proxy HTTP CONNECT (kosongkan untuk menggunakan jaringan sistem)",
-    "测速中...": "Menguji kecepatan...",
-    "测试连接": "Uji koneksi",
-    "仅作用于内嵌页面；外部浏览器登录与更新检查不走此代理。": "Hanya berlaku untuk halaman tertanam. Login melalui browser eksternal dan pemeriksaan pembaruan tidak menggunakan proxy ini.",
-    "留空则创建后手动登录；粘贴 Cookie 后点击「创建并打开」将直接导入并登录。": "Kosongkan untuk login secara manual setelah akun dibuat. Tempel Cookie lalu klik “Buat dan buka” untuk langsung mengimpor dan login.",
-    "适用于 Google OAuth 无法在内置窗口直接登录的场景；导入后自动刷新当前账号。": "Gunakan saat Google OAuth tidak dapat login langsung melalui jendela bawaan. Akun akan dimuat ulang otomatis setelah Cookie diimpor.",
-    "当前没有可用成员，可登录网页或点击右上角添加 API / CLI": "Belum ada anggota tersedia. Login ke akun web atau klik tombol kanan atas untuk menambahkan anggota API/CLI.",
-    "取消编辑": "Batalkan pengeditan",
-    "无状态直连（每轮携带完整上下文）": "Koneksi langsung tanpa status (konteks lengkap dikirim pada setiap giliran)",
-    "已绑定专属会话 · 重置会话": "Sesi khusus sudah terhubung · Atur ulang sesi",
-    "首次发消息时自动创建专属会话（不污染日常聊天）": "Sesi khusus dibuat otomatis saat pesan pertama dikirim (tidak mengganggu percakapan biasa)",
-    "暂无成员": "Belum ada anggota",
-    "正在读取规则…": "Membaca aturan…",
-    "保存并热生效": "Simpan dan terapkan langsung",
-    "保存配置": "Simpan konfigurasi",
-    "打开官网": "Buka situs resmi",
-    "切到余量最多": "Beralih ke akun dengan sisa kuota terbanyak",
-    "按额度排序": "Urutkan berdasarkan kuota",
-    "暂未开放内嵌会话 待核验官方网页直登路径与嵌入条款后启用，可点击右上角访问官网。": "Sesi tertanam belum tersedia. Fitur ini akan diaktifkan setelah jalur login web dan ketentuan penyematan diverifikasi. Klik kanan atas untuk membuka situs resmi.",
-    "清理重登": "Bersihkan sesi dan login ulang",
-    "加载中…": "Memuat…",
-    "状态异常": "Status bermasalah",
-    "在文件夹中显示": "Tampilkan di folder",
-    "暂无群聊": "Belum ada obrolan grup",
-    "点击右上角「+ 创建群聊」，可混编网页账号与 API / CLI 成员协同对话": "Klik “+ Buat obrolan grup” di kanan atas untuk menggabungkan akun web dan anggota API/CLI dalam satu percakapan.",
-    "群聊已就绪": "Obrolan grup siap",
-    "可在下方切换「并行」「评审流」或「A2A 接力」协作模式；输入 @ 可模糊点名，网页成员将自动绑定独立专属会话。": "Pilih mode kolaborasi “Paralel”, “Alur tinjauan”, atau “Relay A2A” di bawah. Ketik @ untuk mencari anggota; anggota web akan otomatis memakai sesi khusus.",
-    "正在直连执行并流式接收回复…": "Menjalankan koneksi langsung dan menerima balasan secara streaming…",
-    "正在该账号原生对话中生成回复…": "Sedang membuat balasan di percakapan asli akun tersebut…",
-    "前往该账号授权 →": "Buka akun tersebut untuk memberi otorisasi →",
-    "自动选号": "Pemilihan otomatis",
-    "会话": "Sesi",
-    "沉淀本轮结论": "Simpan kesimpulan putaran ini",
-    "自动": "Otomatis",
-    "读取备份文件失败:": "Gagal membaca file cadangan:",
-    "作为发送端（生成临时加密共享） 启用官网 / Cloudflare 加密中转通道（默认关闭，跨网或开代理时可选）": "Sebagai pengirim (membuat berbagi terenkripsi sementara), aktifkan kanal relay terenkripsi resmi/Cloudflare (nonaktif secara default; opsional untuk jaringan berbeda atau saat memakai proxy).",
-    "作为接收端（扫码或输入同步串拉取）": "Sebagai penerima (pindai QR atau masukkan string sinkronisasi untuk mengambil data).",
-    "快捷切号": "Pintasan berpindah akun",
-    "归属 ": "Terhubung ke ",
-    "主题：": "Tema: ",
-    "· 评审流（初稿 → 评审 → 定稿）": "· Alur tinjauan (draf → tinjauan → final)",
-    "· A2A接力（最多": "· Relay A2A (maksimal",
-    "检测到正文 @": "Terdeteksi penyebutan @ dalam pesan",
-    "仅向": "Kirim hanya ke",
-    "暂无账号": "Belum ada akun",
-    "可选：输入 JSON 数组覆盖内置规则": "Opsional: masukkan array JSON untuk mengganti aturan bawaan.",
-    "叠号": "Duohao",
-    "[待授权]": "Menunggu otorisasi",
-    "约束各成员直接给结论和关键点，禁止寒暄和铺垫。": "Arahkan setiap anggota untuk langsung menyampaikan kesimpulan dan poin penting tanpa basa-basi atau pengantar yang tidak perlu.",
-    "统一使用简体中文回复；直接给结论、关键依据和可执行方案，禁止客套和冗余铺垫。": "Gunakan bahasa Mandarin Sederhana secara konsisten; sampaikan kesimpulan, dasar utama, dan langkah yang dapat dilakukan secara langsung tanpa basa-basi atau pengantar berlebihan.",
-    "打包内容": "Isi paket",
-    "复制同步串": "Salin string sinkronisasi",
-    "导出加密备份（.maam）": "Ekspor cadangan terenkripsi (.maam)",
-    "AES-256-GCM 端到端加密包含所有账号、代理、时区、群聊与 Cookie 登录态。": "Enkripsi end-to-end AES-256-GCM mencakup seluruh akun, proxy, zona waktu, obrolan grup, dan sesi login Cookie.",
-    "打开文件位置": "Buka lokasi file",
-    "导入并解密备份": "Impor dan dekripsi cadangan",
-    "扫码 / 局域网": "Pindai QR / LAN",
-    "加密备份文件": "File cadangan terenkripsi",
-    "桌面端设置": "Pengaturan desktop",
-    "关闭主窗口时最小化到系统托盘": "Minimalkan ke system tray saat jendela utama ditutup",
-    "自动审批权限请求（前台与后台保活账号）": "Setujui permintaan izin secara otomatis (akun aktif dan yang berjalan di latar belakang)",
-    "开启后，已预热保活的工具授权弹窗将自动点击允许，并跳过删除/退出/支付等高危操作。": "Jika aktif, dialog izin alat pada akun yang sudah disiapkan akan otomatis disetujui, kecuali tindakan berisiko tinggi seperti menghapus, keluar, atau membayar.",
-    "同代理仅保活当前账号（防多号同 IP 限流）": "Jika memakai proxy yang sama, pertahankan hanya akun saat ini tetap aktif (mencegah pembatasan IP untuk banyak akun)",
-    "开启后，未配独立代理或共用同一代理的同平台账号仅保持当前活跃窗口，切号自动释放旧窗口；关闭则恢复全部后台预热保活。": "Jika aktif, akun pada platform yang sama tanpa proxy terpisah atau berbagi proxy yang sama hanya mempertahankan jendela aktif saat ini. Saat berpindah akun, jendela lama dilepas otomatis. Jika dinonaktifkan, semua akun yang disiapkan di latar belakang tetap aktif.",
-    "后台静默保活 / 额度检测间隔（分钟）": "Interval pemeriksaan kuota / menjaga sesi aktif di latar belakang (menit)",
-    "窗口切回与定时检查均受此间隔限制；设为 0 则仅手动刷新。": "Interval ini berlaku untuk pemeriksaan berkala dan saat kembali ke jendela. Atur ke 0 untuk hanya memperbarui secara manual.",
-    "全局呼出 / 隐藏快捷键": "Pintasan global untuk menampilkan / menyembunyikan jendela",
-    "自定义时区（留空跟随系统）": "Zona waktu khusus (kosongkan untuk mengikuti sistem)",
-    "直连": "Koneksi langsung",
-    "选择参与群聊的网页账号或 API / CLI 成员": "Pilih akun web atau anggota API/CLI yang akan bergabung dalam obrolan grup",
-    "+ 管理 API/CLI": "+ Kelola API/CLI",
-    "所有被 @ 唤醒的成员在首次进入或配置变更后自动增量同步此上下文，API / CLI 成员每轮自动携带。": "Semua anggota yang dipanggil dengan @ akan menyinkronkan konteks ini secara bertahap saat pertama bergabung atau setelah konfigurasi berubah. Anggota API/CLI menyertakannya pada setiap giliran.",
-    "暂未添加共享技能，可点击上方预设或下方自定义添加。": "Belum ada keahlian bersama. Pilih preset di atas atau tambahkan keahlian khusus di bawah.",
-    "编辑": "Edit",
-    "预设：": "Preset: ",
-    "重置会话": "Atur ulang sesi",
-    "配置各成员专属分工指令，并可查看/重置网页成员绑定的群聊独立会话 URL。": "Atur instruksi tugas khusus untuk setiap anggota, serta lihat atau atur ulang URL sesi grup terpisah yang terhubung ke anggota web.",
-    "声明式网站适配器（内置 Muse / Hark 规则，可按需热覆盖选择器）与 Fetch/SSE 只读挂钩协同工作。": "Adapter situs deklaratif (dengan aturan bawaan Muse/Hark dan selector yang dapat ditimpa langsung) bekerja bersama hook baca-saja Fetch/SSE.",
-    "覆盖规则文件（保存即热生效，无需重编译）：": "File aturan pengganti (perubahan langsung aktif setelah disimpan, tanpa kompilasi ulang):",
-    "恢复内置默认": "Pulihkan default bawaan",
-    "共享上下文 & 技能 ·": "Konteks & keahlian bersama ·",
-    "共享上下文": "Konteks bersama",
-    "分工 & 会话": "Tugas & sesi",
-    "站点规则": "Aturan situs",
-    "暂未配置 API 或本地 CLI 成员，可点击下方预设或手动添加。": "Belum ada anggota API atau CLI lokal. Pilih preset di bawah atau tambahkan secara manual.",
-    "API / 本地 CLI 混合成员": "Anggota API / CLI lokal campuran",
-    "配置直连 OpenAI 兼容接口或本地 CLI（如 Claude Code / Codex），与网页端账号混编入同一个群聊。": "Konfigurasikan endpoint kompatibel OpenAI atau CLI lokal (seperti Claude Code/Codex), lalu gabungkan dengan akun web dalam satu obrolan grup.",
-    "快速填充：": "Isi cepat: ",
-    "删除群聊「": "Hapus obrolan grup “",
-    "将删除该群聊及本地群聊记录。各成员账号与原生网页历史不受影响。": "Obrolan grup ini dan riwayat lokalnya akan dihapus. Akun anggota dan riwayat asli di situs web tidak akan terpengaruh.",
-    "确认删除": "Konfirmasi penghapusan",
-    "移除「": "Hapus “",
-    "将关闭该视图并彻底清除本机独立浏览资料（Cookie 与存储）。云端账号及历史对话仍由官方保留。": "Tampilan ini akan ditutup dan seluruh data penjelajahan terpisah di perangkat ini (Cookie dan penyimpanan) akan dihapus. Akun cloud dan riwayat percakapan tetap disimpan oleh penyedia resmi.",
-    "确认移除": "Konfirmasi penghapusan",
-    "检测到 UUID 归属冲突": "Konflik kepemilikan UUID terdeteksi",
-    "+ 新增": "+ Tambah",
-    "暂未开放内嵌会话": "Sesi tertanam belum tersedia",
-    "待核验官方网页直登路径与嵌入条款后启用，可点击右上角访问官网。": "Fitur akan diaktifkan setelah jalur login langsung web resmi dan ketentuan penyematan diverifikasi. Klik kanan atas untuk membuka situs resmi.",
-    "从左侧选择一个账号进入对话，或新建账号开启独立隔离登录。": "Pilih akun di sebelah kiri untuk memulai percakapan, atau buat akun baru untuk lingkungan login terisolasi.",
-    "首次打开正在渲染": "Sedang menyiapkan tampilan saat pertama dibuka",
-    "首版暂未启用应用内嵌会话。访问官网不会覆盖上次已打开的账号记录。": "Versi awal belum mengaktifkan sesi web tertanam. Membuka situs resmi tidak akan menimpa catatan akun yang terakhir dibuka.",
-    "打开": "Buka",
-    "多账号群聊": "Obrolan grup multi-akun",
-    "+ 创建群聊": "+ Buat obrolan grup",
-    "创建你的跨服务 AI 群聊": "Buat obrolan grup AI lintas layanan",
-    "支持 Muse / Hark 网页账号与 OpenAI API / 本地 CLI 混编入群，内置并行、评审流、A2A 接力与独立会话绑定。": "Gabungkan akun web Muse/Hark dengan OpenAI API atau CLI lokal dalam satu grup. Tersedia mode paralel, alur tinjauan, relay A2A, dan sesi khusus.",
-    "· 已转发": "· Diteruskan",
-    "排队中…": "Dalam antrean…",
-    "投递中…": "Mengirim…",
-    "回复中…": "Membalas…",
-    "待授权确认": "Menunggu konfirmasi otorisasi",
-    "未完成": "Belum selesai",
-    "等待前序阶段或槽位释放后唤醒…": "Menunggu tahap sebelumnya selesai atau slot tersedia…",
-    "重试": "Coba lagi",
-    "开启新话题：": "Mulai topik baru: ",
-    "保留共享上下文": "Pertahankan konteks bersama",
-    "全部清空": "Hapus semua",
-    "新话题": "Topik baru",
-    "清空记录": "Hapus riwayat",
-    "模式": "Mode",
-    "并行": "Paralel",
-    "评审流": "Alur tinjauan",
-    "A2A接力": "Relay A2A",
-    "接力上限": "Batas relay",
-    "回复中": "Sedang membalas",
-    "群": "grup",
-    "人": "orang",
-    "不收集任何用户数据：每次同步均在本地随机生成一次性 256-bit 密钥进行 AES-256-GCM 端到端加密，密钥仅包含在二维码/同步串中，绝不上传服务端；服务端仅临时暂存纯密文，无法解密，3 分钟或拉取完成后立即销毁。": "Tidak ada data pengguna yang dikumpulkan. Setiap sinkronisasi membuat kunci 256-bit sekali pakai secara lokal untuk enkripsi end-to-end AES-256-GCM. Kunci hanya ada di kode QR/string sinkronisasi dan tidak pernah diunggah ke server. Server hanya menyimpan data terenkripsi sementara dan tidak dapat mendekripsinya; data dihapus setelah 3 menit atau setelah berhasil diambil.",
-    "默认仅通过本地局域网点对点直连（3 分钟或最多 3 次拉取后自动关闭）。": "Secara default, sinkronisasi dilakukan langsung ant perangkat melalui LAN lokal (otomatis berhenti setelah 3 menit atau maksimal 3 kali pengambilan).",
-    "已保存：": "Tersimpan: ",
-    "发布页": "Halaman rilis",
-    "关闭提示": "Tutup pemberitahuan",
-    "由渠道按剩余额度自动选号": "Dipilih otomatis oleh kanal berdasarkan sisa kuota",
-    "归属": "Kepemilikan",
-    "手动改名": "Ubah nama secara manual",
-    "未获取到邮箱": "Email tidak ditemukan",
-    "正在加载": "Sedang memuat",
-    "最新": "Terbaru",
-    "共享技能": "Keahlian bersama",
-    "最新 v": "Versi terbaru v",
-    "已绑定专属会话 ·": "Terhubung ke sesi khusus ·",
-    "点击右上角「+ 新增」创建独立登录环境": "Klik “+ Tambah” di kanan atas untuk membuat lingkungan login terpisah.",
-    "位成员 · 点击开始群聊": "anggota · klik untuk memulai obrolan grup",
-    "按剩余额度自动轮换选号（与该类具体 @ 互斥）": "Pilih otomatis bergantian berdasarkan sisa kuota (tidak dapat digabung dengan penyebutan @ anggota tertentu pada kategori ini)",
-    "· 点击全选或取消该类全部成员": "· klik untuk memilih atau membatalkan pilihan semua anggota dalam kategori ini",
-    "将最近一轮各成员完成回复浓缩追加至共享上下文": "Rangkum balasan selesai dari setiap anggota pada putaran terbaru dan tambahkan ke konteks bersama",
-    "· 待接入": "· Segera hadir",
-    "位成员": "anggota",
-    " 点击右上角「+ 新增」创建独立登录环境": " klik “+ Tambah” di kanan atas untuk membuat lingkungan login terpisah",
+    "Chinese (Simplified)": "简体中文",
+    "Concise Output": "极致简洁输出",
+    "Architecture & Risk Review": "架构与风险评审",
+    "Cross-check Facts": "交叉事实核查",
+    "Direct answers only—conclusions and key points without filler.": "约束各成员直接给结论和关键点，禁止寒暄和铺垫。",
+    "Respond concisely; give direct conclusions, key rationale, and actionable steps without filler or pleasantries.": "直接给结论、关键依据和可执行方案，禁止客套和冗余铺垫。",
+    "Review from four angles: stability, edge cases, security, and performance.": "从稳定性、边界情况、安全性和性能四个维度输出意见。",
+    "When analyzing technical designs, prioritize edge cases, concurrency races, permission security, and resource usage, and clearly state trade-offs and risks.": "分析技术方案时优先检查边界情况、并发竞争、权限安全与资源占用，明确指出取舍与潜在风险。",
+    "Point out flaws in prior statements or premises before adding new conclusions.": "要求先指出前序发言或前提中的漏洞，再补充新结论。",
+    "If shared context or prior member replies contain contradictions, flawed assumptions, or omissions, correct them first before adding your judgment.": "若共享上下文或前序成员发言存在矛盾、假设漏洞或遗漏，请先指出修正，再给出补充判断。",
+    "Local Ollama": "Ollama 本地",
+    "Local CLI": "本地 CLI",
+    "Exhausted": "用尽",
+    "Low": "偏低",
+    "Depleted": "耗尽",
+    "Daily Full": "日满",
+    "Monthly Full": "月满",
+    "Extra Used": "用额外",
+    "Reset": "重置",
+    "Month": "月",
+    "Extra": "额外",
+    "Extra Quota": "额外额度",
+    "Cookie expired": "Cookie 已过期",
+    "Session only": "仅本次会话有效",
+    "Session Cookie (you may need to sign in again after closing the app)": "会话级 Cookie（关闭应用后可能需重新登录）",
+    "Browser session cookie with no fixed expiration time": "浏览器会话级 Cookie，未设置固定过期时间",
+    "Verifying": "校验中",
+    "Replacing": "正在替换",
+    "Complete": "完成",
+    "Awaiting Authorization": "待授权",
+    "Preparing download...": "正在准备下载...",
+    "Updating...": "更新中...",
+    "Authorized, Continue Install": "已授权，继续安装",
+    "Download IPA": "前往下载 IPA",
+    "Download & Update Now": "立即下载并更新",
+    "Checking...": "检查中...",
+    "Check Again": "重新检查",
+    "No members available. Please sign in to a web account or add an API / CLI member first.": "暂无可用成员，请先登录网页账号或添加 API / CLI 成员。",
+    "Official site or self-hosted Cloudflare Worker URL (https://...)": "官网或自建 Cloudflare Worker 地址（https://...）",
+    "Uploading ciphertext...": "上传密文中...",
+    "Regenerate": "重新生成",
+    "Generate random encrypted relay code": "生成随机加密中转码",
+    "Sync passphrase (leave blank to auto-generate 6-digit PIN)": "同步口令（留空自动生成 6 位数字 PIN）",
+    "Starting...": "开启中...",
+    "Restart Sharing": "重新开启",
+    "Start Sharing": "开启共享",
+    "Relay Channel": "中转通道",
+    "LAN Address": "局域网地址",
+    "End-to-End Encryption": "端到端加密",
+    "Sync Passcode": "同步口令",
+    "Deletion Policy": "销毁策略",
+    "Validity": "有效期",
+    "Auto-destroy after": "后自动销毁",
+    "Destroy & Stop Now": "立即销毁并停止",
+    "Stop Sharing": "停止共享",
+    "Enter LAN address or paste maam-sync:// sync string (supports LAN & relay codes)": "输入局域网地址或粘贴 maam-sync:// 同步串（支持局域网与中转码）",
+    "End-to-end key fragment auto-filled by passcode or QR code": "口令或二维码自动填入的端到端密钥片段",
+    "Pulling...": "拉取中...",
+    "Pull & Merge": "拉取并合并",
+    "Set encryption passphrase (at least 4 characters)": "设置加密口令（至少 4 位）",
+    "Exporting...": "导出中...",
+    "Export Backup": "导出备份",
+    "Or paste the full .maam encrypted backup text here": "或直接在此粘贴 .maam 加密备份全文",
+    "Enter the backup decryption passphrase": "输入备份时的解密口令",
+    "Importing...": "导入中...",
+    "Decrypt & Import": "解密并导入",
+    "Default": "默认",
+    "Disable": "禁用",
+    "Shortcut Active": "快捷键已生效",
+    "Inactive": "未激活",
+    "Disabled": "已禁用",
+    "5 minutes": "5 分钟",
+    "15 minutes": "15 分钟",
+    "30 minutes": "30 分钟",
+    "Manual only": "仅手动",
+    "Active": "已生效",
+    "Registration Failed": "注册失败",
+    "Not Enabled": "未启用",
+    "CommandOrControl+Shift+M (leave blank to disable)": "CommandOrControl+Shift+M（留空禁用）",
+    "Saving...": "保存中...",
+    "Account Settings": "账号设置",
+    "Display name (leave blank to use login email)": "备注名称（留空则自动获取登录邮箱）",
+    "Display name (leave blank to keep current)": "备注名称（留空保留原备注）",
+    "Display Name": "备注名称",
+    "IANA time zone (e.g., America/New_York, Asia/Tokyo)": "IANA 时区（例如 America/New_York、Asia/Tokyo）",
+    "Applied per account via native WebView2 API; leave blank to follow system time zone.": "通过 WebView2 原生接口按账号独立生效，留空则使用系统时区。",
+    "Injected into this account's isolated page before document load (DST supported); leave blank to follow system time zone.": "文档加载前注入该账号独立页面，支持夏令时，留空则使用系统时区。",
+    "Import Cookies (optional, paste after signing in via Chrome or another browser)": "导入 Cookie（可选，支持从 Chrome 等浏览器登录后粘贴）",
+    "Import Cookies (paste after signing in via Chrome or another browser)": "导入 Cookie（支持从 Chrome 等浏览器登录后粘贴）",
+    "Paste Cookie header (a=1; b=2), Netscape cookies.txt, or browser-exported JSON array...": "粘贴 Cookie 请求头（a=1; b=2）、Netscape cookies.txt 或浏览器导出的 JSON 数组...",
+    "Import Cookies": "导入 Cookie",
+    "Confirm Clear?": "确认清空？",
+    "Clear Login Cache": "清空登录缓存",
+    "Creating...": "创建中...",
+    "Create & Open": "创建并打开",
+    "Create Group Chat": "创建群聊",
+    "Group name (e.g., Product Brainstorm)": "群聊名称（如：产品头脑风暴）",
+    "Group Name": "群聊名称",
+    "Edit Shared Skill": "编辑共享技能",
+    "Add Custom Skill": "添加自定义技能",
+    "Skill name (e.g., Code Review Guidelines)": "技能名称（如：代码审查规范）",
+    "Short description (optional)": "简短说明（选填）",
+    "Enter skill instructions to inject into all AI members…": "输入注入给各 AI 成员的技能指令原文…",
+    "Update Skill": "更新技能",
+    "+ Add Skill": "+ 添加技能",
+    "Edit Member": "编辑成员",
+    "Add Direct Member": "新增直连成员",
+    "Update Member": "更新成员",
+    "+ Save Member": "+ 保存成员",
+    "Encrypted Multi-Device Sync": "多端加密同步",
+    "Switch to the account with the most remaining quota": "切换到剩余可用额度最多的账号",
+    "Sort accounts from highest to lowest remaining quota": "按剩余可用额度从高到低排序",
+    "Move Up": "上移",
+    "Move Down": "下移",
+    "Force Reload Page": "强制刷新页面",
+    "Copy Cookie": "复制 Cookie",
+    "Remove from Device": "从本机移除",
+    "Dismiss download notice": "关闭下载提示",
+    "All Members": "全体成员",
+    "Draft": "初稿",
+    "Final Synthesis": "综合定稿",
+    "Cross-Review": "交叉评审",
+    "Members": "成员",
+    "Edit group members & name": "编辑群成员与名称",
+    "Delete Group Chat": "删除群聊",
+    "Manage direct OpenAI API & local CLI members": "管理直连 OpenAI API 与本地 CLI 成员",
+    "Save to Shared Context": "沉淀到共享上下文",
+    "Sync Latest Replies (no resend)": "同步最新回复（不重发）",
+    "Sync Latest Replies": "同步最新回复",
+    "Keep Shared Context": "保留共享上下文",
+    "Clear All": "全部清空",
+    "New Topic": "新话题",
+    "Clear History": "清空记录",
+    "Mode": "模式",
+    "Parallel": "并行",
+    "Review Flow": "评审流",
+    "A2A Relay": "A2A接力",
+    "Relay Limit": "接力上限",
+    "Replying": "回复中",
+    "Copy Sync String": "复制同步串",
+    "Export Encrypted Backup (.maam)": "导出加密备份（.maam）",
+    "Show File Location": "打开文件位置",
+    "Import & Decrypt Backup": "导入并解密备份",
+    "QR Scan / LAN": "扫码 / 局域网",
+    "Encrypted Backup File": "加密备份文件",
+    "Desktop Settings": "桌面端设置",
+    "Minimize to system tray when closing main window": "关闭主窗口时最小化到系统托盘",
+    "Auto-approve permission requests (active & background accounts)": "自动审批权限请求（前台与后台保活账号）",
+    "Test Connection": "测试连接",
+    "Testing...": "测速中...",
+    "Cancel Edit": "取消编辑",
+    "No Members": "暂无成员",
+    "Reading rules…": "正在读取规则…",
+    "Save & Apply Live": "保存并热生效",
+    "Save Config": "保存配置",
+    "Open Official Site": "打开官网",
+    "Top Quota": "切到余量最多",
+    "Sort by Quota": "按额度排序",
+    "Clear & Re-login": "清理重登",
+    "Error": "状态异常",
+    "Show in Folder": "在文件夹中显示",
+    "No Group Chats": "暂无群聊",
+    "+ Create Group": "+ 创建群聊",
+    "Create Your Cross-Service AI Group Chat": "创建你的跨服务 AI 群聊",
+    "Queued…": "排队中…",
+    "Delivering…": "投递中…",
+    "Replying…": "回复中…",
+    "Awaiting Approval": "待授权确认",
+    "Incomplete": "未完成",
+    "Retry": "重试",
+    "Package Contents": "打包内容",
+    "Direct": "直连",
+    "Edit": "编辑",
+    "Reset Session": "重置会话",
+    "Restore Defaults": "恢复内置默认",
+    "Shared Context": "共享上下文",
+    "Roles & Sessions": "分工 & 会话",
+    "Site Rules": "站点规则",
+    "Confirm Delete": "确认删除",
+    "Confirm Remove": "确认移除",
+    "+ Add": "+ 新增",
+    "Embedded Sessions Coming Soon": "暂未开放内嵌会话",
+    "Open": "打开",
+    "Multi-Account Group Chat": "多账号群聊",
+    "Release Page": "发布页",
+    "Dismiss Notice": "关闭提示",
+    "Ownership": "归属",
+    "Manual Rename": "手动改名",
+    "Email not detected": "未获取到邮箱",
+    "Loading": "正在加载",
+    "Latest": "最新",
+    "Shared Skills": "共享技能",
+    "Copying…": "复制中…",
+    "Cookie Copied": "已复制 Cookie",
+    "[User]": "[用户]",
+    "Duohao": "叠号",
+    "Duohao · AI Account Switcher": "叠号 · AI 助手账号切换器",
+    "No accounts yet": "暂无账号",
+    "Refresh ready account quotas": "刷新已就绪账号额度"
   },
-  "en": {
-    "群聊": "Group Chat",
-    "同步": "Sync",
-    "设置": "Settings",
-    "更新": "Update",
-    "新版本": "New Version",
-    "待接入": "Coming Soon",
-    "检查更新": "Check for updates",
-    "托盘常驻与全局快捷键设置": "Pengaturan tray dan pintasan global",
-    "跨设备多端加密同步": "Sinkronisasi terenkripsi lintas perangkat",
-    "多账号群聊（桌面端）": "Obrolan grup multi-akun (desktop)",
-    "发送": "Send",
-    "发送中…": "Mengirim…",
-    "添加账号": "Add account",
-    "添加": "Add",
-    "取消": "Cancel",
-    "保存": "Save",
-    "删除": "Delete",
-    "重命名": "Rename",
-    "账号": "Accounts",
-    "代理": "Proxy",
-    "时区": "Time zone",
-    "跟随系统": "System",
-    "纽约": "New York",
-    "洛杉矶": "Los Angeles",
-    "伦敦": "London",
-    "东京": "Tokyo",
-    "新加坡": "Singapore",
-    "上海": "Shanghai",
-    "UTC": "UTC",
-    "深色": "Dark",
-    "浅色": "Light",
-    "跟随": "System",
-    "外观主题": "Appearance",
-    "主题": "Theme",
-    "常规": "General",
-    "确认": "Confirm",
-    "关闭": "Close",
-    "导入": "Import",
-    "导出": "Export",
-    "刷新": "Refresh",
-    "正在加载…": "Loading…",
-    "加载失败": "Failed to load",
-    "已登录": "Signed in",
-    "未登录": "Not signed in",
-    "登录": "Sign in",
-    "账号管理": "Account manager",
-    "极致简洁中文": "Concise Chinese",
-    "架构与风险评审": "Architecture & Risk Review",
-    "交叉事实核查": "Cross-check Facts",
-    "从稳定性、边界情况、安全性和性能四个维度输出意见。": "Review stability, edge cases, security, and performance.",
-    "分析技术方案时优先检查边界情况、并发竞争、权限安全与资源占用，明确指出取舍与潜在风险。": "When reviewing a technical design, check edge cases, race conditions, permission security, and resource usage. Explain trade-offs and potential risks.",
-    "要求先指出前序发言或前提中的漏洞，再补充新结论。": "Identify flaws in earlier statements or assumptions before adding new conclusions.",
-    "若共享上下文或前序成员发言存在矛盾、假设漏洞或遗漏，请先指出修正，再给出补充判断。": "If shared context or earlier messages contain contradictions, flawed assumptions, or omissions, correct them before adding your assessment.",
-    "Ollama 本地": "Local Ollama",
-    "本地 CLI": "Local CLI",
-    "用尽": "Exhausted",
-    "偏低": "Low",
-    "耗尽": "Depleted",
-    "日满": "Daily limit reached",
-    "月满": "Monthly limit reached",
-    "用额外": "Use extra quota",
-    "重置": "Reset",
-    "月": "Month",
-    "额外": "Extra",
-    "余 ": "Remaining ",
-    "额外额度": "Extra quota",
-    "Cookie 已过期": "Cookie expired",
-    "仅本次会话有效": "Valid for this session only",
-    "会话级 Cookie（关闭应用后可能需重新登录）": "Session cookie (you may need to sign in again after closing the app)",
-    "浏览器会话级 Cookie，未设置固定过期时间": "Browser session cookie with no fixed expiration",
-    "校验中": "Verifying",
-    "正在替换": "Replacing",
-    "完成": "Complete",
-    "待授权": "Awaiting authorization",
-    "正在准备下载...": "Preparing download...",
-    "更新中...": "Updating...",
-    "已授权，继续安装": "Authorized, continue installation",
-    "前往下载 IPA": "Go to IPA download",
-    "立即下载并更新": "Download and update now",
-    "检查中...": "Checking...",
-    "重新检查": "Check again",
-    "暂无可用成员，请先登录网页账号或添加 API / CLI 成员。": "No members available. Sign in to a web account or add an API/CLI member first.",
-    "官网或自建 Cloudflare Worker 地址（https://...）": "Official site or self-hosted Cloudflare Worker URL (https://...)",
-    "上传密文中...": "Uploading encrypted data...",
-    "重新生成": "Regenerate",
-    "生成随机加密中转码": "Generate random encrypted relay code",
-    "同步口令（留空自动生成 6 位数字 PIN）": "Sync passcode (leave blank to generate a 6-digit PIN)",
-    "开启中...": "Enabling...",
-    "重新开启": "Re-enable",
-    "开启共享": "Enable sharing",
-    "中转通道": "Relay channel",
-    "局域网地址": "LAN address",
-    "端到端加密": "End-to-end encryption",
-    "同步口令": "Sync passcode",
-    "销毁策略": "Deletion policy",
-    "有效期": "Validity period",
-    "后自动销毁": "Auto-delete after",
-    "立即销毁并停止": "Delete and stop now",
-    "停止共享": "Stop sharing",
-    "输入局域网地址或粘贴 maam-sync:// 同步串（支持局域网与中转码）": "Enter a LAN address or paste a maam-sync:// sync string (LAN and relay codes supported)",
-    "口令或二维码自动填入的端到端密钥片段": "End-to-end key fragment supplied by the passcode or QR code",
-    "拉取中...": "Fetching...",
-    "拉取并合并": "Fetch and merge",
-    "设置加密口令（至少 4 位）": "Set an encryption passphrase (at least 4 characters)",
-    "导出中...": "Exporting...",
-    "导出备份": "Export backup",
-    "或直接在此粘贴 .maam 加密备份全文": "Or paste the full encrypted .maam backup here",
-    "输入备份时的解密口令": "Enter the backup decryption passphrase",
-    "导入中...": "Importing...",
-    "解密并导入": "Decrypt and import",
-    "默认": "Default",
-    "禁用": "Disable",
-    "快捷键已生效": "Shortcut active",
-    "未激活": "Inactive",
-    "已禁用": "Disabled",
-    "5 分钟": "5 minutes",
-    "15 分钟": "15 minutes",
-    "30 分钟": "30 minutes",
-    "仅手动": "Manual only",
-    "已生效": "Active",
-    "注册失败": "Registration failed",
-    "未启用": "Not enabled",
-    "CommandOrControl+Shift+M（留空禁用）": "CommandOrControl+Shift+M (kosongkan untuk menonaktifkan)",
-    "保存中...": "Saving...",
-    "账号设置": "Account settings",
-    "备注名称（留空则自动获取登录邮箱）": "Nama tampilan (kosongkan untuk memakai email login)",
-    "备注名称（留空保留原备注）": "Nama tampilan (kosongkan untuk mempertahankan nama sebelumnya)",
-    "备注名称": "Display name",
-    "IANA 时区（例如 America/New_York、Asia/Tokyo）": "Zona waktu IANA (misalnya America/New_York, Asia/Tokyo)",
-    "通过 WebView2 原生接口按账号独立生效，留空则使用系统时区。": "Diterapkan per akun melalui API native WebView2. Kosongkan untuk memakai zona waktu sistem.",
-    "文档加载前注入该账号独立页面，支持夏令时，留空则使用系统时区。": "Disuntikkan ke halaman akun sebelum dokumen dimuat dan mendukung daylight saving time. Kosongkan untuk memakai zona waktu sistem.",
-    "导入 Cookie（可选，支持从 Chrome 等浏览器登录后粘贴）": "Impor Cookie (opsional, tempel setelah login melalui Chrome atau browser lain)",
-    "导入 Cookie（支持从 Chrome 等浏览器登录后粘贴）": "Impor Cookie (tempel setelah login melalui Chrome atau browser lain)",
-    "粘贴 Cookie 请求头（a=1; b=2）、Netscape cookies.txt 或浏览器导出的 JSON 数组...": "Tempel header Cookie (a=1; b=2), Netscape cookies.txt, atau array JSON hasil ekspor browser...",
-    "导入 Cookie": "Import Cookie",
-    "确认清空？": "Clear everything?",
-    "清空登录缓存": "Clear login cache",
-    "创建中...": "Creating...",
-    "创建并打开": "Create and open",
-    "创建群聊": "Create group chat",
-    "群聊名称（如：产品头脑风暴）": "Nama grup (misalnya: diskusi ide produk)",
-    "群聊名称": "Group name",
-    "例如：项目采用 Tauri + Rust + TypeScript；核心约束是低内存；当前正在排查…": "Contoh: proyek menggunakan Tauri + Rust + TypeScript; batasan utama adalah penggunaan memori rendah; masalah yang sedang diperiksa…",
-    "编辑共享技能": "Edit shared skill",
-    "添加自定义技能": "Add custom skill",
-    "技能名称（如：代码审查规范）": "Nama keahlian (misalnya: standar tinjauan kode)",
-    "简短说明（选填）": "Short description (optional)",
-    "输入注入给各 AI 成员的技能指令原文…": "Masukkan instruksi keahlian yang akan diberikan kepada setiap anggota AI…",
-    "更新技能": "Update skill",
-    "+ 添加技能": "+ Tambah keahlian",
-    "成员分工（如：前端性能优化与交互评审）": "Pembagian tugas anggota (misalnya: optimasi performa frontend dan tinjauan interaksi)",
-    "Base URL（例如 https://api.deepseek.com/v1 或 http://127.0.0.1:11434/v1）": "Base URL (misalnya https://api.deepseek.com/v1 atau http://127.0.0.1:11434/v1)",
-    "API Key（本机 Ollama 可留空）": "API Key (boleh dikosongkan untuk Ollama lokal)",
-    "模型名称（例如 gpt-4o / deepseek-chat / qwen2.5:14b）": "Nama model (misalnya gpt-4o / deepseek-chat / qwen2.5:14b)",
-    "CLI 命令（例如 claude / codex / gemini）": "Perintah CLI (misalnya claude / codex / gemini)",
-    "工作目录（选填，例如 /Users/name/project）": "Direktori kerja (opsional, misalnya /Users/name/project)",
-    "编辑成员": "Edit member",
-    "新增直连成员": "Add direct-connect member",
-    "群聊显示名称（如：Claude-Code / DeepSeek）": "Nama tampilan anggota grup (misalnya Claude-Code / DeepSeek)",
-    "更新成员": "Update member",
-    "+ 保存成员": "+ Simpan anggota",
-    "多端加密同步": "Encrypted multi-device sync",
-    "切换到剩余可用额度最多的账号": "Beralih ke akun dengan kuota tersedia terbanyak",
-    "按剩余可用额度从高到低排序": "Urutkan berdasarkan sisa kuota dari tertinggi",
-    "登录已失效，点击进入重新登录": "Sesi login kedaluwarsa, klik untuk login ulang",
-    "登录已失效，请在右侧重新登录": "Sesi login kedaluwarsa, login ulang di panel kanan",
-    "尚未登录，点击前往登录": "Belum login, klik untuk masuk",
-    "登录已失效，点击重新登录": "Sesi login kedaluwarsa, klik untuk login ulang",
-    "登录后自动同步额度": "Sinkronkan kuota otomatis setelah login",
-    "正在同步额度明细…": "Menyinkronkan rincian kuota…",
-    "已登录账号": "Akun yang sudah login",
-    "上移": "Move up",
-    "下移": "Move down",
-    "强制刷新页面": "Force refresh page",
-    "复制 Cookie": "Copy Cookie",
-    "从本机移除": "Remove from this device",
-    "关闭下载提示": "Dismiss download notice",
-    "全体成员": "All members",
-    "所有人": "Everyone",
-    "全体": "All",
-    "初稿": "Draft",
-    "综合定稿": "Final synthesis",
-    "交叉评审": "Cross-review",
-    " · 评审流（初稿 → 评审 → 定稿）": " · Alur tinjauan (draf → tinjauan → final)",
-    "评审流模式：按成员顺序串行执行（初稿 → 交叉评审 → 综合定稿）；按顺序点选上方成员或在正文按顺序 @ 可自定义先后顺序": "Mode alur tinjauan: jalankan anggota secara berurutan (draf → tinjauan silang → final gabungan); pilih anggota di atas atau sebut dengan @ sesuai urutan yang diinginkan",
-    "向全体成员发送（输入 @ 可点名，Enter 发送，Shift+Enter 换行）": "Kirim ke semua anggota (ketik @ untuk menyebut anggota, Enter untuk mengirim, Shift+Enter untuk baris baru)",
-    "成员": "Members",
-    "编辑群成员与名称": "Edit group members and name",
-    "删除群聊": "Delete group chat",
-    "管理直连 OpenAI API 与本地 CLI 成员": "Manage direct OpenAI API and local CLI members",
-    "沉淀到共享上下文": "Save to shared context",
-    "同步最新回复（不重发）": "Sinkronkan balasan terbaru (tanpa mengirim ulang)",
-    "同步最新回复": "Sync latest replies",
-    "检测到安全授权弹窗，请切到该账号确认后重试": "Dialog otorisasi keamanan terdeteksi. Buka akun tersebut, konfirmasi, lalu coba lagi",
-    "清空记录并让网页成员各自新开对话，保留共享上下文与技能": "Hapus riwayat dan mulai percakapan baru untuk setiap anggota web; pertahankan konteks bersama dan keahlian",
-    "清空记录、共享上下文，网页成员各自新开对话（技能与角色保留）": "Hapus riwayat dan konteks bersama, lalu mulai percakapan baru untuk setiap anggota web (keahlian dan peran tetap dipertahankan)",
-    "清空记录并让所有网页成员新开原生对话，开始一个干净的话题": "Hapus riwayat dan mulai percakapan native baru untuk semua anggota web",
-    "输入消息，输入 @ 可唤起成员点名（Enter 发送，Shift+Enter 换行）": "Ketik pesan; gunakan @ untuk menyebut anggota (Enter untuk mengirim, Shift+Enter untuk baris baru)",
-    "语言": "Language",
-    "简体中文": "Chinese (Simplified)",
-    "已有结论": "Sudah ada kesimpulan",
-    "向全部有效成员转发": "Teruskan ke semua anggota aktif",
-    "已复制同步串（可在另一台设备地址栏直接粘贴）": "String sinkronisasi disalin (tempel ke bilah alamat perangkat lain)",
-    "复制失败，请手动抄录地址与口令": "Gagal menyalin, catat alamat dan kode sandi secara manual",
-    "未识别到有效的同步二维码内容": "Konten QR sinkronisasi tidak valid atau tidak dikenali",
-    "已识别同步地址，请补充输入口令后点击「拉取并合并」": "Alamat sinkronisasi dikenali. Masukkan kode sandi lalu klik “Ambil dan gabungkan”",
-    "已复制密文备份内容": "Konten cadangan terenkripsi disalin",
-    "复制失败，请点击保存 .maam 文件": "Gagal menyalin, klik untuk menyimpan file .maam",
-    "暂无可用在线账号，请先登录或等待同步": "Belum ada akun online. Login atau tunggu sinkronisasi",
-    "当前账号已是可用余量最多的账号": "Akun ini sudah memiliki sisa kuota terbanyak",
-    "当前已是按可用余量降序排列": "Sudah diurutkan berdasarkan sisa kuota",
-    "复制中…": "Menyalin…",
-    "已复制 Cookie": "Cookie disalin",
-    "请先粘贴要导入的 Cookie 内容": "Tempel konten Cookie yang ingin diimpor terlebih dahulu",
-    "单个群聊最多支持 30 个成员": "Setiap grup mendukung maksimal 30 anggota",
-    "请填写技能名称": "Masukkan nama keahlian",
-    "请填写技能指令内容": "Masukkan instruksi keahlian",
-    "单个群聊最多支持 30 个共享技能": "Setiap grup mendukung maksimal 30 keahlian bersama",
-    "[用户]": "[User]",
-    "叠号 · AI 助手账号切换器": "Duohao · AI Account Switcher",
-    "正在识别并同步...": "Recognizing and syncing...",
-    "扫码直接同步": "Scan QR to sync",
-    "命令参数，空格分隔（例如 -p 或 exec {prompt}；无 {prompt} 时走 stdin）": "Command arguments, separated by spaces (e.g. -p or exec {prompt}; without {prompt}, input is sent through stdin).",
-    "刷新已就绪账号额度": "Refresh ready account quotas",
-    "中文（简体）": "Chinese (Simplified)",
-    "正在连接 GitHub Releases 检查版本信息...": "Connecting to GitHub Releases to check version information...",
-    "当前发布尚未包含本平台自动安装包，请点击「发布页」手动下载。": "This release does not include an automatic installer for this platform. Click “Release page” to download it manually.",
-    "已读取文件：": "File read:",
-    "在任意应用中按下快捷键即可显示或隐藏主窗口；托盘菜单可完全退出。": "Press the shortcut in any app to show or hide the main window. Use the tray menu to exit completely.",
-    "HTTP CONNECT 代理（留空使用系统网络）": "HTTP CONNECT proxy (leave blank to use the system network)",
-    "测速中...": "Testing speed...",
-    "测试连接": "Test connection",
-    "仅作用于内嵌页面；外部浏览器登录与更新检查不走此代理。": "Applies only to embedded pages. External-browser sign-in and update checks do not use this proxy.",
-    "留空则创建后手动登录；粘贴 Cookie 后点击「创建并打开」将直接导入并登录。": "Leave blank to sign in manually after creation. Paste a Cookie and click “Create and open” to import it and sign in directly.",
-    "适用于 Google OAuth 无法在内置窗口直接登录的场景；导入后自动刷新当前账号。": "Use this when Google OAuth cannot sign in directly in the built-in window. The current account refreshes automatically after import.",
-    "当前没有可用成员，可登录网页或点击右上角添加 API / CLI": "No members are available. Sign in to a web account or click the top-right button to add an API/CLI member.",
-    "取消编辑": "Cancel editing",
-    "无状态直连（每轮携带完整上下文）": "Stateless direct connection (full context is sent with every turn)",
-    "已绑定专属会话 · 重置会话": "Dedicated session connected · Reset session",
-    "首次发消息时自动创建专属会话（不污染日常聊天）": "A dedicated session is created automatically when the first message is sent (keeps regular chats separate)",
-    "暂无成员": "No members",
-    "正在读取规则…": "Reading rules…",
-    "保存并热生效": "Save and apply immediately",
-    "保存配置": "Save configuration",
-    "打开官网": "Open official website",
-    "切到余量最多": "Switch to the account with the most remaining quota",
-    "按额度排序": "Sort by quota",
-    "暂未开放内嵌会话 待核验官方网页直登路径与嵌入条款后启用，可点击右上角访问官网。": "Embedded sessions are not available yet. They will be enabled after verifying the official web sign-in flow and embedding terms. Click the top-right button to visit the official website.",
-    "清理重登": "Clear session and sign in again",
-    "加载中…": "Loading…",
-    "状态异常": "Status error",
-    "在文件夹中显示": "Show in folder",
-    "暂无群聊": "No group chats yet",
-    "点击右上角「+ 创建群聊」，可混编网页账号与 API / CLI 成员协同对话": "Click “+ Create group chat” in the top-right to combine web accounts and API/CLI members in one conversation.",
-    "群聊已就绪": "Group chat is ready",
-    "可在下方切换「并行」「评审流」或「A2A 接力」协作模式；输入 @ 可模糊点名，网页成员将自动绑定独立专属会话。": "Choose “Parallel”, “Review workflow”, or “A2A relay” below. Type @ to find a member; web members automatically use a dedicated session.",
-    "正在直连执行并流式接收回复…": "Executing the direct connection and receiving a streamed response…",
-    "正在该账号原生对话中生成回复…": "Generating a reply in that account's native conversation…",
-    "前往该账号授权 →": "Open that account to authorize →",
-    "自动选号": "Automatic selection",
-    "会话": "Session",
-    "沉淀本轮结论": "Save this round's conclusions",
-    "自动": "Automatic",
-    "读取备份文件失败:": "Failed to read backup file:",
-    "作为发送端（生成临时加密共享） 启用官网 / Cloudflare 加密中转通道（默认关闭，跨网或开代理时可选）": "As the sender (creates temporary encrypted sharing), enable the official/Cloudflare encrypted relay channel (off by default; optional across networks or when using a proxy).",
-    "作为接收端（扫码或输入同步串拉取）": "As the receiver (scan the QR code or enter a sync string to fetch data).",
-    "快捷切号": "Account-switch shortcut",
-    "归属 ": "Assigned to ",
-    "主题：": "Theme: ",
-    "· 评审流（初稿 → 评审 → 定稿）": "· Review workflow (draft → review → final)",
-    "· A2A接力（最多": "· A2A relay (up to",
-    "检测到正文 @": "Detected an @ mention in the message",
-    "仅向": "Send only to",
-    "暂无账号": "No accounts yet",
-    "可选：输入 JSON 数组覆盖内置规则": "Optional: enter a JSON array to override the built-in rules.",
-    "叠号": "Duohao",
-    "[待授权]": "Authorization pending",
-    "约束各成员直接给结论和关键点，禁止寒暄和铺垫。": "Require each member to state conclusions and key points directly, without greetings or unnecessary preamble.",
-    "统一使用简体中文回复；直接给结论、关键依据和可执行方案，禁止客套和冗余铺垫。": "Reply consistently in Simplified Chinese; provide the conclusion, key rationale, and actionable steps directly, without pleasantries or unnecessary preamble.",
-    "打包内容": "Package contents",
-    "复制同步串": "Copy sync string",
-    "导出加密备份（.maam）": "Export encrypted backup (.maam)",
-    "AES-256-GCM 端到端加密包含所有账号、代理、时区、群聊与 Cookie 登录态。": "AES-256-GCM end-to-end encryption includes all accounts, proxies, time zones, group chats, and Cookie sessions.",
-    "打开文件位置": "Open file location",
-    "导入并解密备份": "Import and decrypt backup",
-    "扫码 / 局域网": "QR scan / LAN",
-    "加密备份文件": "Encrypted backup file",
-    "桌面端设置": "Desktop settings",
-    "关闭主窗口时最小化到系统托盘": "Minimize to the system tray when the main window is closed",
-    "自动审批权限请求（前台与后台保活账号）": "Automatically approve permission requests (foreground and background-kept accounts)",
-    "开启后，已预热保活的工具授权弹窗将自动点击允许，并跳过删除/退出/支付等高危操作。": "When enabled, tool authorization dialogs for prewarmed accounts are automatically approved, while high-risk actions such as delete, exit, and payment are skipped.",
-    "同代理仅保活当前账号（防多号同 IP 限流）": "When using the same proxy, keep only the current account active (prevents shared-IP rate limits)",
-    "开启后，未配独立代理或共用同一代理的同平台账号仅保持当前活跃窗口，切号自动释放旧窗口；关闭则恢复全部后台预热保活。": "When enabled, accounts on the same platform without separate proxies or sharing one proxy keep only the current window active. Switching accounts releases the old window; disabling restores all prewarmed background sessions.",
-    "后台静默保活 / 额度检测间隔（分钟）": "Background session keep-alive / quota-check interval (minutes)",
-    "窗口切回与定时检查均受此间隔限制；设为 0 则仅手动刷新。": "This interval controls scheduled checks and checks when returning to a window. Set to 0 for manual refresh only.",
-    "全局呼出 / 隐藏快捷键": "Global show / hide shortcut",
-    "自定义时区（留空跟随系统）": "Custom time zone (leave blank to follow the system)",
-    "直连": "Direct connection",
-    "选择参与群聊的网页账号或 API / CLI 成员": "Select web accounts or API/CLI members to include in the group chat",
-    "+ 管理 API/CLI": "+ Manage API/CLI",
-    "所有被 @ 唤醒的成员在首次进入或配置变更后自动增量同步此上下文，API / CLI 成员每轮自动携带。": "All members mentioned with @ automatically receive incremental context sync when first joining or after configuration changes. API/CLI members include it with every turn.",
-    "暂未添加共享技能，可点击上方预设或下方自定义添加。": "No shared skills have been added yet. Choose a preset above or add a custom skill below.",
-    "编辑": "Edit",
-    "预设：": "Preset: ",
-    "重置会话": "Reset session",
-    "配置各成员专属分工指令，并可查看/重置网页成员绑定的群聊独立会话 URL。": "Set custom role instructions for each member, and view or reset the dedicated group-session URL bound to web members.",
-    "声明式网站适配器（内置 Muse / Hark 规则，可按需热覆盖选择器）与 Fetch/SSE 只读挂钩协同工作。": "Declarative site adapters (with built-in Muse/Hark rules and live selector overrides) work alongside read-only Fetch/SSE hooks.",
-    "覆盖规则文件（保存即热生效，无需重编译）：": "Override rules file (changes take effect immediately after saving; no rebuild required):",
-    "恢复内置默认": "Restore built-in defaults",
-    "共享上下文 & 技能 ·": "Shared context & skills ·",
-    "共享上下文": "Shared context",
-    "分工 & 会话": "Roles & sessions",
-    "站点规则": "Site rules",
-    "暂未配置 API 或本地 CLI 成员，可点击下方预设或手动添加。": "No API or local CLI members are configured. Choose a preset below or add one manually.",
-    "API / 本地 CLI 混合成员": "API / local CLI mixed members",
-    "配置直连 OpenAI 兼容接口或本地 CLI（如 Claude Code / Codex），与网页端账号混编入同一个群聊。": "Configure a direct OpenAI-compatible endpoint or local CLI (such as Claude Code/Codex) and combine it with web accounts in one group chat.",
-    "快速填充：": "Quick fill: ",
-    "删除群聊「": "Delete group chat “",
-    "将删除该群聊及本地群聊记录。各成员账号与原生网页历史不受影响。": "This deletes the group chat and its local history. Member accounts and their native web histories are unaffected.",
-    "确认删除": "Confirm deletion",
-    "移除「": "Remove “",
-    "将关闭该视图并彻底清除本机独立浏览资料（Cookie 与存储）。云端账号及历史对话仍由官方保留。": "This closes the view and permanently removes its isolated local browsing data (Cookies and storage). Cloud accounts and conversation history remain with the official provider.",
-    "确认移除": "Confirm removal",
-    "检测到 UUID 归属冲突": "UUID ownership conflict detected",
-    "+ 新增": "+ Add",
-    "暂未开放内嵌会话": "Embedded sessions are not available yet",
-    "待核验官方网页直登路径与嵌入条款后启用，可点击右上角访问官网。": "This will be enabled after verifying the official web sign-in flow and embedding terms. Click the top-right button to visit the official website.",
-    "从左侧选择一个账号进入对话，或新建账号开启独立隔离登录。": "Select an account on the left to start a conversation, or create a new account for an isolated sign-in environment.",
-    "首次打开正在渲染": "Rendering on first open",
-    "首版暂未启用应用内嵌会话。访问官网不会覆盖上次已打开的账号记录。": "Embedded sessions are not enabled in this initial version. Visiting the official website will not overwrite the last-opened account records.",
-    "打开": "Open",
-    "多账号群聊": "Multi-account group chat",
-    "+ 创建群聊": "+ Create group chat",
-    "创建你的跨服务 AI 群聊": "Create your cross-service AI group chat",
-    "支持 Muse / Hark 网页账号与 OpenAI API / 本地 CLI 混编入群，内置并行、评审流、A2A 接力与独立会话绑定。": "Combine Muse/Hark web accounts with OpenAI API or local CLI members in one group. Includes parallel mode, review workflow, A2A relay, and dedicated session binding.",
-    "· 已转发": "· Forwarded",
-    "排队中…": "Queued…",
-    "投递中…": "Delivering…",
-    "回复中…": "Replying…",
-    "待授权确认": "Awaiting authorization",
-    "未完成": "Incomplete",
-    "等待前序阶段或槽位释放后唤醒…": "Waiting for the previous stage to finish or a slot to become available…",
-    "重试": "Retry",
-    "开启新话题：": "Start a new topic: ",
-    "保留共享上下文": "Keep shared context",
-    "全部清空": "Clear all",
-    "新话题": "New topic",
-    "清空记录": "Clear history",
-    "模式": "Mode",
-    "并行": "Parallel",
-    "评审流": "Review workflow",
-    "A2A接力": "A2A relay",
-    "接力上限": "Relay limit",
-    "回复中": "Replying",
-    "群": "group",
-    "人": "members",
-    "不收集任何用户数据：每次同步均在本地随机生成一次性 256-bit 密钥进行 AES-256-GCM 端到端加密，密钥仅包含在二维码/同步串中，绝不上传服务端；服务端仅临时暂存纯密文，无法解密，3 分钟或拉取完成后立即销毁。": "No user data is collected. Each sync creates a one-time 256-bit key locally for AES-256-GCM end-to-end encryption. The key is only included in the QR code/sync string and is never uploaded to the server. The server temporarily stores ciphertext only and cannot decrypt it; data is deleted after 3 minutes or once fetched.",
-    "默认仅通过本地局域网点对点直连（3 分钟或最多 3 次拉取后自动关闭）。": "By default, sync uses a direct peer-to-peer connection over the local LAN (automatically stops after 3 minutes or up to 3 fetches).",
-    "已保存：": "Saved: ",
-    "发布页": "Release page",
-    "关闭提示": "Dismiss notice",
-    "由渠道按剩余额度自动选号": "Automatically selected by the channel based on remaining quota",
-    "归属": "Ownership",
-    "手动改名": "Rename manually",
-    "未获取到邮箱": "Email not found",
-    "正在加载": "Loading",
-    "最新": "Latest",
-    "共享技能": "Shared skills",
-    "最新 v": "Latest v",
-    "已绑定专属会话 ·": "Bound to dedicated session ·",
-    "点击右上角「+ 新增」创建独立登录环境": "Click “+ Add” in the top-right to create an isolated sign-in environment.",
-    "位成员 · 点击开始群聊": "members · click to start group chat",
-    "按剩余额度自动轮换选号（与该类具体 @ 互斥）": "Automatically rotate by remaining quota (cannot be combined with explicit @ mentions in this category)",
-    "· 点击全选或取消该类全部成员": "· click to select or clear all members in this category",
-    "将最近一轮各成员完成回复浓缩追加至共享上下文": "Summarize the completed replies from all members in the latest round and append them to the shared context",
-    "· 待接入": "· Coming soon",
-    "位成员": "members",
-    " 点击右上角「+ 新增」创建独立登录环境": " click “+ Add” in the top-right to create an isolated sign-in environment",
-  }
-};
-const MAAM_PARTIAL_TRANSLATIONS: Record<string, Record<string, string>> = {
   "id": {
-    "Cookie 已于 ": "Cookie kedaluwarsa pada ",
-    " 过期（需重新登录或刷新）": " kedaluwarsa (login ulang atau muat ulang)",
-    "Cookie 过期时间：": "Waktu kedaluwarsa Cookie: ",
-    "Cookie 约 ": "Cookie sekitar ",
-    " 年": " tahun",
-    "Cookie 剩 ": "Sisa Cookie ",
-    " 天": " hari",
-    " 小时": " jam",
-    " 分钟": " menit",
-    "Cookie 有效期至 ": "Cookie berlaku hingga ",
-    "（剩余 ": " (tersisa ",
-    "发现新版本 v": "Versi baru v",
-    "当前 v": "Versi saat ini v",
-    "已自动过滤 ": "Otomatis menyaring ",
-    " 个未登录或登录失效网页账号（已选 ": " akun web yang belum login atau sesinya kedaluwarsa (terpilih ",
-    "支持网页账号与 API / CLI 混合协同（已选 ": "Mendukung kolaborasi akun web dan API/CLI (terpilih ",
-    " 100% · 已耗尽": " 100% · habis",
-    " · A2A接力（最多 ": " · Relay A2A (maksimal ",
-    " 跳）": " lompatan)",
-    "检测到 @全体成员：将按排队限流向全员转发": "Terdeteksi @semua: pesan diteruskan ke seluruh anggota melalui antrean dengan pembatasan laju",
-    "检测到正文 @，评审流顺序：": "Terdeteksi @ dalam pesan; urutan alur tinjauan: ",
-    "检测到正文 @": "Terdeteksi penyebutan @ dalam pesan ",
-    "：将仅转发给被提及成员": ": teruskan hanya kepada anggota yang disebut",
-    "评审流顺序：": "Urutan tinjauan: ",
-    "仅向 ": "Kirim hanya ke ",
-    " 发送": " kirim",
-    "A2A 接力模式：成员回复正文包含 @成员 将自动触发下一跳（上限 ": "Mode relay A2A: balasan anggota yang memuat @anggota otomatis memicu lompatan berikutnya (maksimal ",
-    "[待授权] ": "[Menunggu otorisasi] ",
-    "我: ": "Saya: ",
-    ": 排队等待回复…": ": dalam antrean, menunggu balasan…",
-    " 正在回复…": " sedang membalas…",
-    " 位成员 · 点击开始群聊": " anggota · klik untuk memulai obrolan grup",
-    "点击编辑「": "Klik untuk mengedit “",
-    "」配置": "” pengaturan",
-    "点击切换到「": "Klik untuk beralih ke “",
-    "」原生会话页": "” percakapan asli",
-    "直连配置": "pengaturan koneksi langsung",
-    "已绑定群专属会话 · 点击进入「": "Terhubung ke sesi khusus grup ini · klik untuk membuka “",
-    " 页面": " halaman",
-    " 按剩余额度自动轮换选号（与该类具体 @ 互斥）": " berganti otomatis berdasarkan sisa kuota (tidak dapat digabung dengan @ anggota kategori ini)",
-    " · 点击全选或取消该类全部成员": " · klik untuk memilih atau membatalkan semua anggota kategori ini",
-    "外观主题：": "Tampilan: ",
-    "（点击切换）": " (klik untuk mengganti)",
-    "（点击更新）": " (klik untuk memperbarui)",
-    "已有结论（议题：": "Kesimpulan sudah tersedia (topik: ",
-    "- 观点": "- Pandangan ",
-    " · 未登录": " · Belum login",
-    " · 状态异常": " · Status bermasalah",
-    "正在下载：": "Mengunduh: ",
-    "下载完成：": "Unduhan selesai: ",
-    "下载失败：": "Unduhan gagal: ",
-    "读取备份文件失败:": "Gagal membaca file cadangan:",
-    "100% · 已耗尽": "100% · habis",
-    "作为发送端（生成临时加密共享）": "Sebagai pengirim (membuat berbagi terenkripsi sementara)",
-    "启用官网 / Cloudflare 加密中转通道": "Aktifkan kanal relay terenkripsi resmi/Cloudflare",
-    "（默认关闭，跨网或开代理时可选）": " (nonaktif secara default; opsional untuk jaringan berbeda atau saat memakai proxy)",
-    "作为接收端（扫码或输入同步串拉取）": "Sebagai penerima (pindai QR atau masukkan string sinkronisasi untuk mengambil data)",
-    "已加密 ": "Terenkripsi ",
-    " 个账号（": " akun (",
-    " 个含 Cookie）。": " termasuk Cookie).",
-    "保存 .maam 文件": "Simpan file .maam",
-    "复制密文": "Salin data terenkripsi",
-    "同步成功：新增 ": "Sinkronisasi berhasil: menambahkan ",
-    " 个账号，更新 ": " akun, memperbarui ",
-    " 个账号，写入 ": " akun, menyimpan ",
-    " 个登录态": " status login",
-    "HTTP CONNECT 代理（留空使用系统网络）": "Proxy HTTP CONNECT (kosongkan untuk memakai jaringan sistem)",
-    "仅作用于内嵌页面；外部浏览器登录与更新检查不走此代理。": "Hanya berlaku untuk halaman tertanam; login browser eksternal dan pemeriksaan pembaruan tidak menggunakan proxy ini.",
-    "点击进入「": "Klik untuk membuka “",
-    "暂无 ": "Belum ada ",
-    " 点击右上角「+ 新增」创建独立登录环境": " klik “+ Tambah” di kanan atas untuk membuat lingkungan login terpisah",
-    "：将同时转发给": "; teruskan juga kepada ",
-    "(自动)": "(otomatis)",
-    "(自动按额度选号)": "(pilih otomatis berdasarkan kuota)",
-    "我:": "Saya:",
-    "正在回复…": "sedang membalas…",
-    " · 点击开始群聊": " · klik untuk memulai obrolan grup",
-    "可选：输入 JSON 数组覆盖内置规则": "Opsional: masukkan array JSON untuk mengganti aturan bawaan",
-    "例如": "misalnya",
-    "代理：": "Proxy: ",
-    "时区：": "Zona waktu: ",
-    "在浏览器中打开 ": "Buka di browser ",
-    " 官网": " situs resmi",
-    "主题：深色": "Tema: Gelap",
-    "主题：浅色": "Tema: Terang",
-    "主题：跟随系统": "Tema: Ikuti sistem",
-    "外观主题：深色": "Tampilan: Gelap",
-    "外观主题：浅色": "Tampilan: Terang",
-    "外观主题：跟随系统": "Tampilan: Ikuti sistem",
-    " 分钟 / 最多 ": " menit / maksimal ",
-    " 次拉取": " kali pengambilan",
-    " 分钟后自动销毁": " menit kemudian dihapus otomatis",
-    " 个 Cookie 写入跳过": " Cookie yang dilewati saat impor",
-    "/8000 字符": "/8000 karakter",
-    "/ ": "/ ",
-    " 编辑「": "Edit “",
-    "删除群聊「": "Hapus obrolan grup “",
-    "移除「": "Hapus “",
-    " · 待接入": " · Segera hadir",
-    " 位成员": " anggota",
-    "· 已转发": "· Diteruskan",
-    " 最新 v": " Versi terbaru v",
-    "共享技能 (": "Keahlian bersama (",
-    "已绑定专属会话 · ": "Terhubung ke sesi khusus · ",
-    " 账号": " akun",
-    " + 新增 ": " + Tambah ",
-    "正在加载「": "Sedang memuat “",
-    "」": "”",
-    "检测到 UUID 归属冲突（": "Konflik kepemilikan UUID terdeteksi (",
-    "），请选择保留归属服务：": "), pilih layanan yang tetap menjadi pemilik:",
-    "打开 ": "Buka ",
-    "位成员": "anggota",
-  },
-  "en": {
-    "Cookie 已于 ": "Cookie expired at ",
-    " 过期（需重新登录或刷新）": " expired (sign in again or refresh)",
-    "Cookie 过期时间：": "Cookie expiration: ",
-    "Cookie 约 ": "Cookie approx. ",
-    " 年": " years",
-    "Cookie 剩 ": "Cookie remaining ",
-    " 天": " days",
-    " 小时": " hours",
-    " 分钟": " minutes",
-    "Cookie 有效期至 ": "Cookie valid until ",
-    "（剩余 ": " (remaining ",
-    "发现新版本 v": "New version v",
-    "当前 v": "Current v",
-    "已自动过滤 ": "Automatically filtered ",
-    " 个未登录或登录失效网页账号（已选 ": " web accounts that are signed out or expired (selected ",
-    "支持网页账号与 API / CLI 混合协同（已选 ": "Supports mixed web-account and API/CLI collaboration (selected ",
-    " 100% · 已耗尽": " 100% · exhausted",
-    " · A2A接力（最多 ": " · A2A relay (up to ",
-    " 跳）": " hops)",
-    "检测到 @全体成员：将按排队限流向全员转发": "Detected @all: forwarding to all members through a queue with rate limiting",
-    "检测到正文 @，评审流顺序：": "Detected an @ mention in the message; review order: ",
-    "检测到正文 @": "Detected an @ mention in the message ",
-    "：将仅转发给被提及成员": ": forwarding only to mentioned members",
-    "评审流顺序：": "Review order: ",
-    "仅向 ": "Send only to ",
-    " 发送": " send",
-    "A2A 接力模式：成员回复正文包含 @成员 将自动触发下一跳（上限 ": "A2A relay mode: an @mention in a member reply automatically triggers the next hop (limit ",
-    "[待授权] ": "[Authorization pending] ",
-    "我: ": "Me: ",
-    ": 排队等待回复…": ": queued, waiting for a reply…",
-    " 正在回复…": " is replying…",
-    " 位成员 · 点击开始群聊": " members · click to start group chat",
-    "点击编辑「": "Click to edit “",
-    "」配置": "” settings",
-    "点击切换到「": "Click to switch to “",
-    "」原生会话页": "” native conversation",
-    "直连配置": "direct connection settings",
-    "已绑定群专属会话 · 点击进入「": "Bound to this group's dedicated session · click to open “",
-    " 页面": " page",
-    " 按剩余额度自动轮换选号（与该类具体 @ 互斥）": " automatically rotates by remaining quota (exclusive with explicit @ mentions in this category)",
-    " · 点击全选或取消该类全部成员": " · click to select or clear all members in this category",
-    "外观主题：": "Appearance: ",
-    "（点击切换）": " (click to switch)",
-    "（点击更新）": " (click to update)",
-    "已有结论（议题：": "Conclusion available (topic: ",
-    "- 观点": "- Viewpoint ",
-    " · 未登录": " · Signed out",
-    " · 状态异常": " · Status error",
-    "正在下载：": "Downloading: ",
-    "下载完成：": "Download complete: ",
-    "下载失败：": "Download failed: ",
-    "读取备份文件失败:": "Failed to read backup file:",
-    "100% · 已耗尽": "100% · exhausted",
-    "作为发送端（生成临时加密共享）": "As the sender (creates temporary encrypted sharing)",
-    "启用官网 / Cloudflare 加密中转通道": "enable the official/Cloudflare encrypted relay channel",
-    "（默认关闭，跨网或开代理时可选）": " (off by default; optional across networks or when using a proxy)",
-    "作为接收端（扫码或输入同步串拉取）": "As the receiver (scan a QR code or enter a sync string to fetch data)",
-    "已加密 ": "Encrypted ",
-    " 个账号（": " accounts (",
-    " 个含 Cookie）。": " including Cookie).",
-    "保存 .maam 文件": "Save .maam file",
-    "复制密文": "Copy encrypted data",
-    "同步成功：新增 ": "Sync succeeded: added ",
-    " 个账号，更新 ": " accounts, updated ",
-    " 个账号，写入 ": " accounts, wrote ",
-    " 个登录态": " login sessions",
-    "HTTP CONNECT 代理（留空使用系统网络）": "HTTP CONNECT proxy (leave blank to use the system network)",
-    "仅作用于内嵌页面；外部浏览器登录与更新检查不走此代理。": "Applies only to embedded pages; external-browser sign-in and update checks do not use this proxy.",
-    "点击进入「": "Click to open “",
-    "暂无 ": "No ",
-    " 点击右上角「+ 新增」创建独立登录环境": "; click “+ Add” in the top-right to create a separate sign-in environment",
-    "：将同时转发给": "; also forward to ",
-    "(自动)": "(automatic)",
-    "(自动按额度选号)": "(automatic quota-based selection)",
-    "我:": "Me:",
-    "正在回复…": "is replying…",
-    " · 点击开始群聊": " · click to start group chat",
-    "可选：输入 JSON 数组覆盖内置规则": "Optional: enter a JSON array to override the built-in rules",
-    "例如": "e.g.",
-    "代理：": "Proxy: ",
-    "时区：": "Time zone: ",
-    "在浏览器中打开 ": "Open in browser ",
-    " 官网": " official website",
-    "主题：深色": "Theme: Dark",
-    "主题：浅色": "Theme: Light",
-    "主题：跟随系统": "Theme: System",
-    "外观主题：深色": "Appearance: Dark",
-    "外观主题：浅色": "Appearance: Light",
-    "外观主题：跟随系统": "Appearance: System",
-    " 分钟 / 最多 ": " minutes / up to ",
-    " 次拉取": " fetches",
-    " 分钟后自动销毁": " minutes later",
-    " 个 Cookie 写入跳过": " Cookies skipped during import",
-    "/8000 字符": "/8000 characters",
-    " 编辑「": "Edit “",
-    "删除群聊「": "Delete group chat “",
-    "移除「": "Remove “",
-    " · 待接入": " · Coming soon",
-    " 位成员": " members",
-    "· 已转发": "· Forwarded",
-    " 最新 v": " Latest v",
-    "共享技能 (": "Shared skills (",
-    "已绑定专属会话 · ": "Bound to dedicated session · ",
-    " 账号": " account",
-    " + 新增 ": " + Add ",
-    "正在加载「": "Loading “",
-    "」": "”",
-    "检测到 UUID 归属冲突（": "UUID ownership conflict detected (",
-    "），请选择保留归属服务：": "), choose the service that should retain ownership:",
-    "打开 ": "Open ",
-    "位成员": "members",
+    "Group Chat": "Obrolan grup",
+    "Sync": "Sinkronisasi",
+    "Settings": "Pengaturan",
+    "Update": "Pembaruan",
+    "New Ver": "Versi baru",
+    "New Version": "Versi baru",
+    "Coming Soon": "Segera hadir",
+    "Check for Updates": "Periksa pembaruan",
+    "Tray & Global Shortcut Settings": "Pengaturan tray dan pintasan global",
+    "Cross-Device Encrypted Sync": "Sinkronisasi terenkripsi lintas perangkat",
+    "Multi-Account Group Chat (Desktop)": "Obrolan grup multi-akun (desktop)",
+    "Send": "Kirim",
+    "Sending…": "Mengirim…",
+    "Add Account": "Tambah akun",
+    "Add": "Tambah",
+    "Cancel": "Batal",
+    "Save": "Simpan",
+    "Delete": "Hapus",
+    "Rename": "Ubah nama",
+    "Accounts": "Akun",
+    "Proxy": "Proxy",
+    "Time Zone": "Zona waktu",
+    "Time zone": "Zona waktu",
+    "Follow System": "Ikuti Sistem",
+    "New York": "New York",
+    "Los Angeles": "Los Angeles",
+    "London": "London",
+    "Tokyo": "Tokyo",
+    "Singapore": "Singapura",
+    "Shanghai": "Shanghai",
+    "UTC": "UTC",
+    "Dark": "Gelap",
+    "Light": "Terang",
+    "System": "Ikuti sistem",
+    "Appearance": "Tampilan",
+    "Theme": "Tema",
+    "General": "Umum",
+    "Confirm": "Konfirmasi",
+    "Close": "Tutup",
+    "Import": "Impor",
+    "Export": "Ekspor",
+    "Refresh": "Muat ulang",
+    "Loading…": "Memuat…",
+    "Load Failed": "Gagal memuat",
+    "Signed in": "Sudah login",
+    "Signed out": "Belum login",
+    "Sign in": "Login",
+    "Account Manager": "Manajemen akun",
+    "Language": "Bahasa",
+    "English": "English",
+    "Bahasa Indonesia": "Bahasa Indonesia",
+    "Chinese (Simplified)": "Bahasa Mandarin (Sederhana)",
+    "Concise Output": "Output Ringkas",
+    "Architecture & Risk Review": "Tinjauan Arsitektur dan Risiko",
+    "Cross-check Facts": "Pemeriksaan Fakta Silang",
+    "Direct answers only—conclusions and key points without filler.": "Arahkan setiap anggota untuk langsung menyampaikan kesimpulan dan poin penting tanpa basa-basi.",
+    "Respond concisely; give direct conclusions, key rationale, and actionable steps without filler or pleasantries.": "Berikan kesimpulan, dasar utama, dan langkah yang dapat dilakukan secara langsung tanpa basa-basi.",
+    "Review from four angles: stability, edge cases, security, and performance.": "Berikan masukan dari sisi stabilitas, kasus tepi, keamanan, dan kinerja.",
+    "When analyzing technical designs, prioritize edge cases, concurrency races, permission security, and resource usage, and clearly state trade-offs and risks.": "Saat menganalisis solusi teknis, periksa kasus tepi, kondisi balapan, keamanan izin, dan penggunaan sumber daya.",
+    "Point out flaws in prior statements or premises before adding new conclusions.": "Tunjukkan kekurangan pada pernyataan atau asumsi sebelumnya sebelum menambahkan kesimpulan.",
+    "If shared context or prior member replies contain contradictions, flawed assumptions, or omissions, correct them first before adding your judgment.": "Jika konteks bersama atau pernyataan anggota sebelumnya mengandung kontradiksi, asumsi keliru, atau kekurangan, koreksi terlebih dahulu.",
+    "Local Ollama": "Ollama Lokal",
+    "Local CLI": "CLI Lokal",
+    "Exhausted": "Habis",
+    "Low": "Rendah",
+    "Depleted": "Habis",
+    "Daily Full": "Batas harian tercapai",
+    "Monthly Full": "Batas bulanan tercapai",
+    "Extra Used": "Gunakan kuota tambahan",
+    "Reset": "Atur ulang",
+    "Month": "Bulan",
+    "Extra": "Tambahan",
+    "Extra Quota": "Kuota tambahan",
+    "Cookie expired": "Cookie kedaluwarsa",
+    "Session only": "Hanya berlaku untuk sesi ini",
+    "Verifying": "Memverifikasi",
+    "Replacing": "Mengganti",
+    "Complete": "Selesai",
+    "Awaiting Authorization": "Menunggu otorisasi",
+    "Preparing download...": "Menyiapkan unduhan...",
+    "Updating...": "Memperbarui...",
+    "Authorized, Continue Install": "Diizinkan, lanjutkan instalasi",
+    "Download IPA": "Unduh IPA",
+    "Download & Update Now": "Unduh dan perbarui sekarang",
+    "Checking...": "Memeriksa...",
+    "Check Again": "Periksa ulang",
+    "Regenerate": "Buat ulang",
+    "Starting...": "Mengaktifkan...",
+    "Restart Sharing": "Aktifkan ulang",
+    "Start Sharing": "Aktifkan berbagi",
+    "Relay Channel": "Kanal relay",
+    "LAN Address": "Alamat LAN",
+    "End-to-End Encryption": "Enkripsi end-to-end",
+    "Sync Passcode": "Kode sinkronisasi",
+    "Deletion Policy": "Kebijakan penghapusan",
+    "Validity": "Masa berlaku",
+    "Auto-destroy after": "Hapus otomatis setelahnya",
+    "Destroy & Stop Now": "Hapus dan hentikan sekarang",
+    "Stop Sharing": "Hentikan berbagi",
+    "Pulling...": "Mengambil data...",
+    "Pull & Merge": "Ambil dan gabungkan",
+    "Exporting...": "Mengekspor...",
+    "Export Backup": "Ekspor cadangan",
+    "Importing...": "Mengimpor...",
+    "Decrypt & Import": "Dekripsi dan impor",
+    "Default": "Bawaan",
+    "Disable": "Nonaktifkan",
+    "Shortcut Active": "Pintasan aktif",
+    "Inactive": "Tidak aktif",
+    "Disabled": "Dinonaktifkan",
+    "5 minutes": "5 menit",
+    "15 minutes": "15 menit",
+    "30 minutes": "30 menit",
+    "Manual only": "Hanya manual",
+    "Active": "Aktif",
+    "Registration Failed": "Registrasi gagal",
+    "Not Enabled": "Belum diaktifkan",
+    "Saving...": "Menyimpan...",
+    "Account Settings": "Pengaturan akun",
+    "Display Name": "Nama tampilan",
+    "Import Cookies": "Impor Cookie",
+    "Confirm Clear?": "Yakin ingin menghapus semua?",
+    "Clear Login Cache": "Hapus cache login",
+    "Creating...": "Membuat...",
+    "Create & Open": "Buat dan buka",
+    "Create Group Chat": "Buat obrolan grup",
+    "Group Name": "Nama grup",
+    "Edit Shared Skill": "Edit keahlian bersama",
+    "Add Custom Skill": "Tambah keahlian khusus",
+    "Update Skill": "Perbarui keahlian",
+    "+ Add Skill": "+ Tambah keahlian",
+    "Edit Member": "Edit anggota",
+    "Add Direct Member": "Tambah anggota koneksi langsung",
+    "Update Member": "Perbarui anggota",
+    "+ Save Member": "+ Simpan anggota",
+    "Encrypted Multi-Device Sync": "Sinkronisasi terenkripsi multi-perangkat",
+    "Move Up": "Pindah ke atas",
+    "Move Down": "Pindah ke bawah",
+    "Force Reload Page": "Paksa muat ulang halaman",
+    "Copy Cookie": "Salin Cookie",
+    "Remove from Device": "Hapus dari perangkat ini",
+    "All Members": "Semua anggota",
+    "Draft": "Draf awal",
+    "Final Synthesis": "Final gabungan",
+    "Cross-Review": "Tinjauan silang",
+    "Members": "Anggota",
+    "Delete Group Chat": "Hapus obrolan grup",
+    "Save to Shared Context": "Simpan ke konteks bersama",
+    "Sync Latest Replies": "Sinkronkan balasan terbaru",
+    "Keep Shared Context": "Pertahankan konteks bersama",
+    "Clear All": "Hapus semua",
+    "New Topic": "Topik baru",
+    "Clear History": "Hapus riwayat",
+    "Mode": "Mode",
+    "Parallel": "Paralel",
+    "Review Flow": "Alur tinjauan",
+    "A2A Relay": "Relay A2A",
+    "Relay Limit": "Batas relay",
+    "Replying": "Sedang membalas",
+    "Copy Sync String": "Salin string sinkronisasi",
+    "Export Encrypted Backup (.maam)": "Ekspor cadangan terenkripsi (.maam)",
+    "Show File Location": "Buka lokasi file",
+    "Import & Decrypt Backup": "Impor dan dekripsi cadangan",
+    "QR Scan / LAN": "Pindai QR / LAN",
+    "Encrypted Backup File": "File cadangan terenkripsi",
+    "Desktop Settings": "Pengaturan desktop",
+    "Test Connection": "Uji koneksi",
+    "Testing...": "Menguji...",
+    "Cancel Edit": "Batalkan pengeditan",
+    "No Members": "Belum ada anggota",
+    "Reading rules…": "Membaca aturan…",
+    "Save & Apply Live": "Simpan dan terapkan langsung",
+    "Save Config": "Simpan konfigurasi",
+    "Open Official Site": "Buka situs resmi",
+    "Top Quota": "Sisa terbanyak",
+    "Sort by Quota": "Urutkan kuota",
+    "Clear & Re-login": "Bersihkan sesi dan login ulang",
+    "Error": "Status bermasalah",
+    "Show in Folder": "Tampilkan di folder",
+    "No Group Chats": "Belum ada obrolan grup",
+    "+ Create Group": "+ Buat obrolan grup",
+    "Queued…": "Dalam antrean…",
+    "Delivering…": "Mengirim…",
+    "Replying…": "Membalas…",
+    "Awaiting Approval": "Menunggu otorisasi",
+    "Incomplete": "Belum selesai",
+    "Retry": "Coba lagi",
+    "Package Contents": "Isi paket",
+    "Direct": "Langsung",
+    "Edit": "Edit",
+    "Reset Session": "Atur ulang sesi",
+    "Restore Defaults": "Pulihkan default bawaan",
+    "Shared Context": "Konteks bersama",
+    "Roles & Sessions": "Tugas & sesi",
+    "Site Rules": "Aturan situs",
+    "Confirm Delete": "Konfirmasi penghapusan",
+    "Confirm Remove": "Konfirmasi penghapusan",
+    "+ Add": "+ Tambah",
+    "Open": "Buka",
+    "Multi-Account Group Chat": "Obrolan grup multi-akun",
+    "Release Page": "Halaman rilis",
+    "Dismiss Notice": "Tutup pemberitahuan",
+    "Ownership": "Kepemilikan",
+    "Manual Rename": "Ubah nama secara manual",
+    "Email not detected": "Email tidak ditemukan",
+    "Loading": "Sedang memuat",
+    "Latest": "Terbaru",
+    "Shared Skills": "Keahlian bersama",
+    "Copying…": "Menyalin…",
+    "Cookie Copied": "Cookie disalin",
+    "[User]": "[Pengguna]",
+    "Duohao": "Duohao",
+    "Duohao · AI Account Switcher": "Duohao · Pengalih Akun AI",
+    "No accounts yet": "Belum ada akun",
+    "Refresh ready account quotas": "Perbarui kuota akun yang siap"
   }
 };
 
 function maamTranslateText(text: string): string {
-  if (maamLanguage === "zh") return text;
+  if (maamLanguage === "en") return text;
   const dict = MAAM_TRANSLATIONS[maamLanguage] || {};
   const exact = dict[text];
   if (exact !== undefined) return exact;
-  const numericCount = new RegExp("^([0-9]+)(人|群|跳)$").exec(text);
+  const numericCount = /^([0-9]+)\s+(members?|groups?|hops?)$/i.exec(text);
   if (numericCount) {
-    const noun = numericCount[2] === "人"
-      ? (maamLanguage === "id" ? " orang" : " members")
-      : numericCount[2] === "群"
-        ? (maamLanguage === "id" ? " grup" : " groups")
-        : (maamLanguage === "id" ? " lompatan" : " hops");
+    const unit = numericCount[2].toLowerCase();
+    const noun = unit.startsWith("member")
+      ? (maamLanguage === "zh" ? "人" : " anggota")
+      : unit.startsWith("group")
+        ? (maamLanguage === "zh" ? "群" : " grup")
+        : (maamLanguage === "zh" ? "跳" : " lompatan");
     return numericCount[1] + noun;
   }
-  const partial = MAAM_PARTIAL_TRANSLATIONS[maamLanguage] || {};
-  let result = text;
-  const entries = Object.entries(partial).sort((a, b) => b[0].length - a[0].length);
-  for (const [from, to] of entries) {
-    if (result.includes(from)) result = result.split(from).join(to);
-  }
-  return result;
+  return text;
 }
 
 let maamObserver: MutationObserver | null = null;
 let maamObserverQueued = false;
 
 function applyMaamLocalization(): void {
+  document.documentElement.lang = maamLanguage === "zh" ? "zh-CN" : maamLanguage;
   const root = document.querySelector<HTMLElement>("#app");
   if (!root) return;
+
+  const selector = root.querySelector<HTMLSelectElement>("#maam-language-selector");
+  if (selector) selector.value = maamLanguage;
+
+  if (maamLanguage === "en") {
+    if (maamObserver) {
+      maamObserver.disconnect();
+      maamObserver = null;
+    }
+    return;
+  }
 
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
@@ -4174,9 +3719,6 @@ function applyMaamLocalization(): void {
     }
   });
 
-  const selector = root.querySelector<HTMLSelectElement>("#maam-language-selector");
-  if (selector) selector.value = maamLanguage;
-
   if (!maamObserver && typeof MutationObserver !== "undefined") {
     maamObserver = new MutationObserver(() => {
       if (maamObserverQueued) return;
@@ -4196,9 +3738,9 @@ function applyMaamLocalization(): void {
   }
 }
 function maamLanguageSelectorHtml(): string {
-  const chineseLabel = maamLanguage === "id" ? "Bahasa Mandarin (Sederhana)" : maamLanguage === "en" ? "Chinese (Simplified)" : "简体中文";
   const languageLabel = maamLanguage === "id" ? "Bahasa" : maamLanguage === "zh" ? "语言" : "Language";
-  return '<div class="rail-language-control" style="padding:8px 6px;"><select id="maam-language-selector" aria-label="' + languageLabel + '" style="width:100%;padding:7px;border-radius:8px;background:var(--surface);color:var(--text);border:1px solid var(--border);"><option value="en">English</option><option value="id">Bahasa Indonesia</option><option value="zh">' + chineseLabel + '</option></select></div>';
+  const langTitle = `${languageLabel}: English / Bahasa Indonesia / Chinese`;
+  return '<div class="rail-lang-wrap"><select id="maam-language-selector" class="rail-lang-select" aria-label="' + languageLabel + '" title="' + langTitle + '"><option value="en">EN</option><option value="id">ID</option><option value="zh">ZH</option></select></div>';
 }
 function bindMaamLanguageSelector(): void {
   const select = document.querySelector<HTMLSelectElement>("#maam-language-selector");
@@ -4238,6 +3780,7 @@ function render(): void {
     "ext-agent-args-input",
     "ext-agent-workdir-input",
     "group-chat-input",
+    "ac-history-search-input",
   ]);
   const accountInputSelection =
     (focusedInput instanceof HTMLInputElement || focusedInput instanceof HTMLTextAreaElement) &&
@@ -4254,7 +3797,42 @@ function render(): void {
   
   const isMobile = isMobilePlatform(snapshot.platform);
   const isGroupsView = !isMobile && viewMode === "groups";
+  const isRouterView = !isMobile && viewMode === "router";
+  const isAgentCenterView = !isMobile && viewMode === "agent_center";
+  const isProviderView = !isMobile && viewMode === "provider";
   const anyGroupNeedsAuth = snapshot.groupChats.some(groupHasNeedsAuth);
+  const activeTaskCount = (snapshot.tasks ?? []).filter(
+    (t) => t.status === "running" || t.status === "waiting_approval"
+  ).length;
+  const activeLeaseCount = (snapshot.accountLeases ?? []).filter(
+    (l) => l.expiresAtMs > Date.now()
+  ).length;
+
+  const renderSharedChrome = (st: ManagerSnapshot, prov: ProviderInfo): string => {
+    const noticeHtml = st.notice
+      ? `
+        <div class="notice-bar">
+          <span>${escapeHtml(st.notice)}</span>
+          <button id="dismiss-notice-btn" class="notice-close" type="button" title="Dismiss notice">✕</button>
+        </div>
+      `
+      : "";
+    return `${noticeHtml}${renderDownloadToast()}${renderModal(st, prov)}`;
+  };
+
+  const featureDeps: SmartRouterViewDeps & AgentCenterViewDeps = {
+    callCmd: async <T = ManagerSnapshot>(cmd: string, args?: Record<string, unknown>) =>
+      invoke<T>(cmd, args),
+    applySnapshot: (nextSnap: ManagerSnapshot) => {
+      snapshot = nextSnap;
+      rerenderPreservingScroll();
+    },
+    rerender: () => {
+      rerenderPreservingScroll();
+    },
+    escapeHtml,
+    renderSharedChrome,
+  };
 
   if (isMobile) {
     root.innerHTML = `
@@ -4279,26 +3857,50 @@ function render(): void {
     applyMaamLocalization();
     bindMaamLanguageSelector();
   } else {
+    const middleHtml = isGroupsView
+      ? renderGroupMiddleContent(snapshot, provider)
+      : isRouterView
+        ? renderSmartRouterMiddle(snapshot, provider, featureDeps)
+        : isAgentCenterView
+          ? renderAgentCenterMiddle(snapshot, provider, featureDeps)
+          : renderMiddleContent(snapshot, provider);
+
+    const stageHtml = isGroupsView
+      ? renderGroupRightStage(snapshot)
+      : isRouterView
+        ? renderSmartRouterStage(snapshot, featureDeps)
+        : isAgentCenterView
+          ? renderAgentCenterStage(snapshot, featureDeps)
+          : renderRightStage(snapshot, provider);
+
     root.innerHTML = `
       <div class="desktop-shell">
         <aside class="service-rail">
-          <div class="rail-brand" title="叠号 · AI 助手账号切换器">
-            <img src="/logos/app-logo.svg" alt="叠号" class="rail-brand-img" draggable="false" />
+          <div class="rail-brand" title="Duohao · AI Account Switcher">
+            <img src="/logos/app-logo.svg" alt="Duohao" class="rail-brand-img" draggable="false" />
           </div>
           <div class="rail-divider"></div>
           <div class="rail-providers">
-            <button id="group-chat-rail-btn" class="rail-btn ${isGroupsView ? "active" : ""}" title="多账号群聊（桌面端）" type="button">
+            <button id="group-chat-rail-btn" class="rail-btn ${isGroupsView ? "active" : ""}" title="Multi-Account Group Chat (Desktop)" type="button">
               <div class="rail-logo-box rail-group-icon">${ICON_GROUP}${anyGroupNeedsAuth ? `<span class="warn-dot" aria-hidden="true"></span>` : ""}</div>
-              <span class="rail-label">群聊</span>
+              <span class="rail-label">Groups</span>
+            </button>
+            <button id="agent-center-rail-btn" class="rail-btn ${isAgentCenterView ? "active" : ""}" title="Agent Center · Orchestrator & Pipelines" type="button">
+              <div class="rail-logo-box rail-group-icon">${ICON_AGENT_CENTER}${activeTaskCount > 0 ? `<span class="warn-dot" aria-hidden="true"></span>` : ""}</div>
+              <span class="rail-label">Agents</span>
+            </button>
+            <button id="router-rail-btn" class="rail-btn ${isRouterView ? "active" : ""}" title="Smart Router · Quota & Lease Pool" type="button">
+              <div class="rail-logo-box rail-group-icon">${ICON_ROUTER}${activeLeaseCount > 0 ? `<span class="warn-dot" aria-hidden="true"></span>` : ""}</div>
+              <span class="rail-label">Router</span>
             </button>
             <div class="rail-divider"></div>
             ${snapshot.providers
               .map(
                 (p) => `
-                <button class="rail-btn ${!isGroupsView && p.id === provider.id ? "active" : ""} ${!p.enabled ? "disabled" : ""}" data-provider="${escapeHtml(p.id)}" title="${escapeHtml(p.name)}" type="button">
+                <button class="rail-btn ${isProviderView && p.id === provider.id ? "active" : ""} ${!p.enabled ? "disabled" : ""}" data-provider="${escapeHtml(p.id)}" title="${escapeHtml(p.name)}" type="button">
                   <div class="rail-logo-box">${renderProviderLogo(p, "rail-logo-img")}</div>
                   <span class="rail-label">${escapeHtml(p.shortName)}</span>
-                  ${!p.enabled ? `<span class="rail-pending-tag">待接入</span>` : ""}
+                  ${!p.enabled ? `<span class="rail-pending-tag">Coming Soon</span>` : ""}
                 </button>
               `
               )
@@ -4309,26 +3911,26 @@ function render(): void {
             <button
               id="sync-btn"
               class="rail-util-btn"
-              title="跨设备多端加密同步"
+              title="Cross-device encrypted sync"
               type="button"
             >
               ${ICON_SYNC}
-              <span class="rail-util-label">同步</span>
+              <span class="rail-util-label">Sync</span>
             </button>
             <button
               id="settings-btn"
               class="rail-util-btn ${snapshot.globalShortcutError ? "has-warn" : ""}"
-              title="${snapshot.globalShortcutError ? escapeHtml(snapshot.globalShortcutError) : "托盘常驻与全局快捷键设置"}"
+              title="${snapshot.globalShortcutError ? escapeHtml(snapshot.globalShortcutError) : "Tray & global shortcut settings"}"
               type="button"
             >
               ${ICON_SETTINGS}
-              <span class="rail-util-label">设置</span>
+              <span class="rail-util-label">Settings</span>
               ${snapshot.globalShortcutError ? `<span class="warn-dot" aria-hidden="true"></span>` : ""}
             </button>
             <button
               id="theme-toggle-btn"
               class="rail-util-btn"
-              title="外观主题：${themeLabel(themeMode)}（点击切换）"
+              title="Theme: ${themeLabel(themeMode)} (click to switch)"
               type="button"
             >
               ${themeIcon(themeMode)}
@@ -4337,19 +3939,17 @@ function render(): void {
             <button
               id="check-update-btn"
               class="rail-util-btn ${updateState.result?.hasUpdate ? "has-update" : ""}"
-              title="${updateState.result?.hasUpdate ? `发现新版本 v${escapeHtml(updateState.result.latestVersion)}（点击更新）` : "检查更新"}"
+              title="${updateState.result?.hasUpdate ? `New version v${escapeHtml(updateState.result.latestVersion)} (click to update)` : "Check for updates"}"
               type="button"
             >
               ${ICON_UPDATE}
-              <span class="rail-util-label">${updateState.result?.hasUpdate ? "新版本" : "更新"}</span>
+              <span class="rail-util-label">${updateState.result?.hasUpdate ? "New Ver" : "Update"}</span>
               ${updateState.result?.hasUpdate ? `<span class="update-dot" aria-hidden="true"></span>` : ""}
             </button>
           </div>
         </aside>
-        <section class="middle-column">
-          ${isGroupsView ? renderGroupMiddleContent(snapshot, provider) : renderMiddleContent(snapshot, provider)}
-        </section>
-        ${isGroupsView ? renderGroupRightStage(snapshot) : renderRightStage(snapshot, provider)}
+        <section class="middle-column">${middleHtml}</section>
+        ${stageHtml}
       </div>
     `;
     applyMaamLocalization();
@@ -4357,6 +3957,11 @@ function render(): void {
   }
 
   bindEvents(snapshot, provider);
+  if (!isMobile && viewMode === "router") {
+    bindSmartRouterEvents(snapshot, featureDeps);
+  } else if (!isMobile && viewMode === "agent_center") {
+    bindAgentCenterEvents(snapshot, featureDeps);
+  }
   if (accountInputSelection) {
     const input = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(
       `#${accountInputSelection.id}`
@@ -4380,6 +3985,33 @@ function bindEvents(state: ManagerSnapshot, provider: ProviderInfo): void {
     viewMode = "groups";
     const targetId = state.activeGroupId ?? state.groupChats[0]?.id ?? null;
     await callCommand("select_group_chat", { groupId: targetId });
+  });
+
+  document.querySelector("#agent-center-rail-btn")?.addEventListener("click", async () => {
+    if (viewMode === "agent_center") return;
+    if (modal.kind !== "none") {
+      await setModal({ kind: "none" });
+    }
+    viewMode = "agent_center";
+    if (state.activeGroupId) {
+      await callCommand("select_group_chat", { groupId: null });
+    } else {
+      rerenderPreservingScroll();
+    }
+  });
+
+  document.querySelector("#router-rail-btn")?.addEventListener("click", async () => {
+    if (viewMode === "router") return;
+    if (modal.kind !== "none") {
+      await setModal({ kind: "none" });
+    }
+    viewMode = "router";
+    resetSmartRouterDraftFromSnapshot(state);
+    if (state.activeGroupId) {
+      await callCommand("select_group_chat", { groupId: null });
+    } else {
+      rerenderPreservingScroll();
+    }
   });
 
   document.querySelectorAll<HTMLElement>("[data-provider]").forEach((btn) => {
@@ -4471,7 +4103,7 @@ function bindEvents(state: ManagerSnapshot, provider: ProviderInfo): void {
       if (!msg || !msg.content.trim()) return;
       const prefix =
         msg.role === "user"
-          ? "[用户]"
+          ? "[User]"
           : `[${resolveGroupMessageSenderName(state, msg)}]`;
       await callCommand("append_group_shared_context", {
         groupId: state.activeGroupId,
@@ -4561,10 +4193,10 @@ function bindEvents(state: ManagerSnapshot, provider: ProviderInfo): void {
     const round = getLatestRoundCompletedReplies(state, activeGroup);
     if (!round) return;
     const head = round.userText
-      ? `已有结论（议题：${round.userText.replace(/\s+/g, " ").slice(0, 80)}）`
-      : "已有结论";
+      ? `Conclusions (Topic: ${round.userText.replace(/\s+/g, " ").slice(0, 80)})`
+      : "Conclusions";
     const lines = round.replies.map(
-      (r, i) => `- 观点${i + 1}: ${r.text.replace(/\s+/g, " ").slice(0, 280)}`
+      (r, i) => `- Viewpoint ${i + 1}: ${r.text.replace(/\s+/g, " ").slice(0, 280)}`
     );
     const snippet = `${head}\n${lines.join("\n")}`.slice(0, 1800);
     await callCommand("append_group_shared_context", {
@@ -4781,9 +4413,9 @@ function bindEvents(state: ManagerSnapshot, provider: ProviderInfo): void {
     const mentionCandidates: MentionCandidate[] = activeGroup
       ? [
           {
-            label: "全体成员",
-            sub: "向全部有效成员转发",
-            insert: "全体成员",
+            label: "all",
+            sub: "Forward to all active members",
+            insert: "all",
           },
           ...groupByMemberCategory(
             state,
@@ -4797,9 +4429,9 @@ function bindEvents(state: ManagerSnapshot, provider: ProviderInfo): void {
               return {
                 label: meta.alias,
                 sub: meta.loggedOut
-                  ? `${cat.label} · 未登录`
+                  ? `${cat.label} · Signed out`
                   : meta.pageError
-                    ? `${cat.label} · 状态异常`
+                    ? `${cat.label} · Page error`
                     : roleText
                       ? `${cat.label} · ${roleText}`
                       : cat.label,
@@ -5191,7 +4823,7 @@ function bindEvents(state: ManagerSnapshot, provider: ProviderInfo): void {
       render();
     } catch (err) {
       if (modal !== cur) return;
-      cur.error = `读取备份文件失败: ${String(err)}`;
+      cur.error = `Failed to read backup file: ${String(err)}`;
       render();
     }
   });
@@ -5240,9 +4872,9 @@ function bindEvents(state: ManagerSnapshot, provider: ProviderInfo): void {
     if (cur.kind !== "sync" || !cur.lanShareInfo) return;
     try {
       await navigator.clipboard.writeText(cur.lanShareInfo.syncUri);
-      cur.copyHint = "已复制同步串（可在另一台设备地址栏直接粘贴）";
+      cur.copyHint = "Sync URI copied (paste into the address field on another device)";
     } catch {
-      cur.copyHint = "复制失败，请手动抄录地址与口令";
+      cur.copyHint = "Copy failed. Please copy the address and passcode manually";
     }
     render();
   });
@@ -5260,7 +4892,7 @@ function bindEvents(state: ManagerSnapshot, provider: ProviderInfo): void {
       if (modal !== cur || scanned.cancelled) return;
       const raw = (scanned.content || "").trim();
       if (!raw) {
-        cur.error = "未识别到有效的同步二维码内容";
+        cur.error = "No valid sync QR code content detected";
         return;
       }
       let parsedAddr = raw;
@@ -5282,7 +4914,7 @@ function bindEvents(state: ManagerSnapshot, provider: ProviderInfo): void {
         cur.lanPullPassDraft = parsedPass;
       }
       if (!parsedPass) {
-        cur.copyHint = "已识别同步地址，请补充输入口令后点击「拉取并合并」";
+        cur.copyHint = "Sync address recognized. Enter the passcode and click \"Pull & Merge\"";
         return;
       }
       cur.lanPullBusy = true;
@@ -5384,9 +5016,9 @@ function bindEvents(state: ManagerSnapshot, provider: ProviderInfo): void {
     if (cur.kind !== "sync" || !cur.fileExportResult) return;
     try {
       await navigator.clipboard.writeText(cur.fileExportResult.bundleJson);
-      cur.copyHint = "已复制密文备份内容";
+      cur.copyHint = "Encrypted backup content copied";
     } catch {
-      cur.copyHint = "复制失败，请点击保存 .maam 文件";
+      cur.copyHint = "Copy failed. Please click Save .maam File";
     }
     render();
   });
@@ -5428,7 +5060,7 @@ function bindEvents(state: ManagerSnapshot, provider: ProviderInfo): void {
     const best = ranked[0];
     if (!best) {
       if (snapshot) {
-        snapshot = { ...snapshot, notice: "暂无可用在线账号，请先登录或等待同步" };
+        snapshot = { ...snapshot, notice: "No available signed-in account found. Please sign in or wait for sync." };
         rerenderPreservingScroll();
       }
       return;
@@ -5437,7 +5069,7 @@ function bindEvents(state: ManagerSnapshot, provider: ProviderInfo): void {
       if (snapshot) {
         snapshot = {
           ...snapshot,
-          notice: "当前账号已是可用余量最多的账号",
+          notice: "Current account already has the highest remaining quota",
         };
         rerenderPreservingScroll();
       }
@@ -5464,7 +5096,7 @@ function bindEvents(state: ManagerSnapshot, provider: ProviderInfo): void {
       if (snapshot) {
         snapshot = {
           ...snapshot,
-          notice: "当前已是按可用余量降序排列",
+          notice: "Accounts are already sorted by remaining quota (high to low)",
         };
         rerenderPreservingScroll();
       }
@@ -5497,6 +5129,23 @@ function bindEvents(state: ManagerSnapshot, provider: ProviderInfo): void {
   };
   document.querySelector("#add-account-btn")?.addEventListener("click", openAddModal);
   document.querySelector("#stage-add-btn")?.addEventListener("click", openAddModal);
+  document.querySelector("#stage-account-settings-btn")?.addEventListener("click", async () => {
+    if (!state.activeAccount) return;
+    const acc = state.accounts.find(
+      (a) =>
+        a.providerId === state.activeAccount!.providerId &&
+        a.uuid === state.activeAccount!.uuid
+    );
+    if (!acc) return;
+    await setModal({
+      kind: "rename",
+      account: acc,
+      draft: acc.autoAlias ? "" : acc.alias,
+      proxyDraft: acc.proxyUrl ?? "",
+      timezoneDraft: acc.timezone ?? "",
+      cookieDraft: "",
+    });
+  });
 
   document.querySelector("#dismiss-notice-btn")?.addEventListener("click", async () => {
     await callCommand("dismiss_notice");
@@ -5581,17 +5230,17 @@ function bindEvents(state: ManagerSnapshot, provider: ProviderInfo): void {
       copyingCookies.add(copyKey);
       window.clearTimeout(feedbackTimer);
       button.classList.remove("copied");
-      button.dataset.copyLabel = "复制中…";
+      button.dataset.copyLabel = "Copying…";
       try {
         await invoke<void>("copy_account_cookie", { providerId: provider.id, uuid });
-        button.dataset.copyLabel = "已复制 Cookie";
+        button.dataset.copyLabel = "Copied";
         button.classList.add("copied");
         feedbackTimer = window.setTimeout(() => {
           button.classList.remove("copied");
-          button.dataset.copyLabel = "复制 Cookie";
+          button.dataset.copyLabel = "Copy Cookie";
         }, 1800);
       } catch (err) {
-        button.dataset.copyLabel = "复制 Cookie";
+        button.dataset.copyLabel = "Copy Cookie";
         if (snapshot?.selectedProviderId === provider.id) {
           snapshot = { ...snapshot, notice: String(err) };
           rerenderPreservingScroll();
@@ -5910,7 +5559,7 @@ function bindEvents(state: ManagerSnapshot, provider: ProviderInfo): void {
     if (currentModal.kind !== "rename" || currentModal.saving || currentModal.cookieImporting) return;
     const raw = (currentModal.cookieDraft ?? "").trim();
     if (!raw) {
-      currentModal.error = "请先粘贴要导入的 Cookie 内容";
+      currentModal.error = "Please paste Cookie content to import first";
       render();
       return;
     }
@@ -5952,7 +5601,7 @@ function bindEvents(state: ManagerSnapshot, provider: ProviderInfo): void {
         nowChecked = false;
       } else {
         if (modal.selectedMembers.length >= 30) {
-          modal.error = "单个群聊最多支持 30 个成员";
+          modal.error = "A group chat supports up to 30 members";
           rerenderPreservingScroll();
           return;
         }
@@ -5993,7 +5642,7 @@ function bindEvents(state: ManagerSnapshot, provider: ProviderInfo): void {
     const desc = kModal.skillDescDraft.trim();
     const content = kModal.skillContentDraft.trim();
     if (!name || !content) {
-      kModal.error = !name ? "请填写技能名称" : "请填写技能指令内容";
+      kModal.error = !name ? "Please enter a skill name" : "Please enter skill instructions";
       return false;
     }
     if (kModal.editingSkillId) {
@@ -6008,7 +5657,7 @@ function bindEvents(state: ManagerSnapshot, provider: ProviderInfo): void {
       }
     } else {
       if (kModal.skillsDraft.length >= 30) {
-        kModal.error = "单个群聊最多支持 30 个共享技能";
+        kModal.error = "A group chat supports up to 30 shared skills";
         return false;
       }
       kModal.skillsDraft.push({
@@ -6084,7 +5733,7 @@ function bindEvents(state: ManagerSnapshot, provider: ProviderInfo): void {
       if (!preset) return;
       if (modal.skillsDraft.some((s) => s.name === preset.name)) return;
       if (modal.skillsDraft.length >= 30) {
-        modal.error = "单个群聊最多支持 30 个共享技能";
+        modal.error = "A group chat supports up to 30 shared skills";
         render();
         return;
       }
